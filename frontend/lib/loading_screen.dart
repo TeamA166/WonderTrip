@@ -21,7 +21,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
   Future<void> _fetchDataAndNavigate() async {
     try {
       // --- IMPORTANT ---
-      String apiUrl = 'http://10.0.2.2:8080/api/v1/title';
+      String apiUrl = 'https://api.batuhanalun.com/api/v1/title';
       
       // Use the 'http' package to send a GET request
       final response = await http.get(Uri.parse(apiUrl));
