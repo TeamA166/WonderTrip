@@ -2,14 +2,17 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/TeamA166/WonderTrip/internal/api/public"
 	"github.com/TeamA166/WonderTrip/internal/config"
 	"github.com/TeamA166/WonderTrip/internal/database"
-	"github.com/gofiber/fiber/v3"
-	"gorm.io/gorm"
+	"github.com/TeamA166/WonderTrip/internal/repository"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 )
-
-var db *gorm.DB
 
 func main() {
 
@@ -18,16 +21,49 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	db, err = database.InitDatabase(cfg)
+	db, err := database.NewDatabase(&cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
+	defer db.Close()
+	log.Println("Database connection established successfully.")
+
+	loadScreenRepo := repository.NewLoadScreenRepository(db)
+	LoadScreenHandler := public.NewLoadScreenHandler(loadScreenRepo)
+
 	app := fiber.New()
 
-	log.Printf("Starting server on port %s", cfg.Port)
-	if err := app.Listen(cfg.Port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	app.Use(logger.New())
+
+	v1 := app.Group("/api/v1")
+	{
+		v1.Get("/title", LoadScreenHandler.GetTitle)
 	}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		log.Printf("Starting server on port %s", cfg.Port)
+		if err := app.Listen(cfg.Port); err != nil {
+			serverErr <- err
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-serverErr:
+
+		log.Fatalf("Server failed to start and gracefully exit: %v", err)
+	case <-quit:
+
+	}
+
+	log.Println("Shutting down server gracefully...")
+	if err := app.Shutdown(); err != nil {
+		log.Fatalf("Fiber server shutdown error: %v", err)
+	}
+	log.Println("Server stopped.")
 
 }
