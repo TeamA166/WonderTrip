@@ -15,6 +15,11 @@ type Config struct {
 		DBName   string `mapstructure:"dbname"`
 		SSLMode  string `mapstructure:"sslmode"`
 	} `mapstructure:"database"`
+	Auth struct {
+		JWTSecret           string `mapstructure:"jwt_secret"`
+		AccessTokenMinutes  int    `mapstructure:"access_token_minutes"`
+		PasswordHashingCost int    `mapstructure:"password_hashing_cost"`
+	} `mapstructure:"auth"`
 }
 
 func LoadConfig() (config Config, err error) {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/TeamA166/WonderTrip/internal/api/public"
 	"github.com/TeamA166/WonderTrip/internal/config"
@@ -30,7 +31,14 @@ func main() {
 	log.Println("Database connection established successfully.")
 
 	loadScreenRepo := repository.NewLoadScreenRepository(db)
-	LoadScreenHandler := public.NewLoadScreenHandler(loadScreenRepo)
+	loadScreenHandler := public.NewLoadScreenHandler(loadScreenRepo)
+
+	userRepo := repository.NewUserRepository(db)
+	tokenExpiry := time.Duration(cfg.Auth.AccessTokenMinutes) * time.Minute
+	authHandler, err := public.NewAuthHandler(userRepo, cfg.Auth.JWTSecret, tokenExpiry, cfg.Auth.PasswordHashingCost)
+	if err != nil {
+		log.Fatalf("Failed to initialize auth handler: %v", err)
+	}
 
 	app := fiber.New()
 
@@ -38,7 +46,11 @@ func main() {
 
 	v1 := app.Group("/api/v1")
 	{
-		v1.Get("/title", LoadScreenHandler.GetTitle)
+		v1.Get("/title", loadScreenHandler.GetTitle)
+
+		auth := v1.Group("/auth")
+		auth.Post("/register", authHandler.Register)
+		auth.Post("/login", authHandler.Login)
 	}
 
 	serverErr := make(chan error, 1)
