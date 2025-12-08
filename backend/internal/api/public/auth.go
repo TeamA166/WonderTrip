@@ -51,7 +51,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	req.Email = sanitizeEmail(req.Email)
-	req.FullName = strings.TrimSpace(req.FullName)
+	req.Name = strings.TrimSpace(req.Name)
+	req.Surname = strings.TrimSpace(req.Surname)
 
 	if err := validateRegisterRequest(req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -63,7 +64,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if _, err := h.repo.GetByEmail(ctx, req.Email); err == nil {
 		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": "Bu e-posta zaten kayıtlı"})
 	} else if !errors.Is(err, sql.ErrNoRows) {
+		fmt.Printf(err.Error())
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Kullanıcı kontrolü başarısız"})
+
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), h.passwordCost)
@@ -73,12 +76,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	user := core.User{
 		Email:        req.Email,
-		FullName:     req.FullName,
+		Name:         req.Name,
+		Surname:      req.Surname,
 		PasswordHash: string(hash),
 	}
 
 	created, err := h.repo.CreateUser(ctx, user)
 	if err != nil {
+		fmt.Printf(err.Error())
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Kullanıcı kaydedilemedi"})
 	}
 
@@ -125,6 +130,15 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Token oluşturulamadı"})
 	}
 
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    authResponse.AccessToken,
+		Expires:  time.Now().Add(h.tokenExpiry),
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Strict",
+	})
+
 	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"user": sanitizeUser(user),
 		"auth": authResponse,
@@ -138,6 +152,7 @@ func (h *AuthHandler) buildAuthResponse(user core.User) (core.AuthResponse, erro
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":   user.ID,
 		"email": user.Email,
+		"role":  user.Role,
 		"exp":   expiresAt.Unix(),
 		"iat":   issuedAt.Unix(),
 	})
@@ -161,7 +176,7 @@ func sanitizeUser(user core.User) fiber.Map {
 	return fiber.Map{
 		"id":        user.ID,
 		"email":     user.Email,
-		"full_name": user.FullName,
+		"name":      user.Name,
 		"createdAt": user.CreatedAt,
 		"updatedAt": user.UpdatedAt,
 	}

@@ -25,12 +25,12 @@ func NewUserRepository(db *sqlx.DB) UserRepository {
 
 func (r *userRepository) CreateUser(ctx context.Context, user core.User) (core.User, error) {
 	const query = `
-		INSERT INTO users (email, password_hash, full_name)
-		VALUES ($1, $2, $3)
-		RETURNING id, email, full_name, password_hash, created_at, updated_at`
+		INSERT INTO users (email, password_hash, name, surname)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, email, name, surname, password_hash, created_at, updated_at`
 
 	var created core.User
-	if err := r.db.GetContext(ctx, &created, query, user.Email, user.PasswordHash, user.FullName); err != nil {
+	if err := r.db.GetContext(ctx, &created, query, user.Email, user.PasswordHash, user.Name, user.Surname); err != nil {
 		return core.User{}, fmt.Errorf("repository: create user: %w", err)
 	}
 
@@ -39,7 +39,7 @@ func (r *userRepository) CreateUser(ctx context.Context, user core.User) (core.U
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (core.User, error) {
 	const query = `
-		SELECT id, email, full_name, password_hash, created_at, updated_at
+		SELECT id, email, name, surname, password_hash, created_at, updated_at
 		FROM users
 		WHERE email = $1
 		LIMIT 1`

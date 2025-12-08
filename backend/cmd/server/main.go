@@ -36,6 +36,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	tokenExpiry := time.Duration(cfg.Auth.AccessTokenMinutes) * time.Minute
 	authHandler, err := public.NewAuthHandler(userRepo, cfg.Auth.JWTSecret, tokenExpiry, cfg.Auth.PasswordHashingCost)
+
 	if err != nil {
 		log.Fatalf("Failed to initialize auth handler: %v", err)
 	}
