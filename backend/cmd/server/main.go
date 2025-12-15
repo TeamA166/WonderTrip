@@ -7,6 +7,8 @@ import (
 	"syscall"
 	"time"
 
+	middleware "github.com/TeamA166/WonderTrip/internal/api/middlewares"
+	privateapi "github.com/TeamA166/WonderTrip/internal/api/private"
 	"github.com/TeamA166/WonderTrip/internal/api/public"
 	"github.com/TeamA166/WonderTrip/internal/config"
 	"github.com/TeamA166/WonderTrip/internal/database"
@@ -34,8 +36,12 @@ func main() {
 	loadScreenHandler := public.NewLoadScreenHandler(loadScreenRepo)
 
 	userRepo := repository.NewUserRepository(db)
+	postRepo := repository.NewPostRepository(db)
 	tokenExpiry := time.Duration(cfg.Auth.AccessTokenMinutes) * time.Minute
 	authHandler, err := public.NewAuthHandler(userRepo, cfg.Auth.JWTSecret, tokenExpiry, cfg.Auth.PasswordHashingCost)
+	postHandler := privateapi.NewPostHandler(postRepo)
+
+	authMiddleware := middleware.NewAuthMiddleware(cfg.Auth.JWTSecret)
 
 	if err != nil {
 		log.Fatalf("Failed to initialize auth handler: %v", err)
@@ -45,13 +51,18 @@ func main() {
 
 	app.Use(logger.New())
 
-	v1 := app.Group("/api/v1")
+	v1 := app.Group("/api/v1") //api to auth
 	{
 		v1.Get("/title", loadScreenHandler.GetTitle)
 
 		auth := v1.Group("/auth")
 		auth.Post("/register", authHandler.Register)
 		auth.Post("/login", authHandler.Login)
+	}
+
+	protected := v1.Group("/protected", authMiddleware)
+	{
+		protected.Post("/posts", postHandler.Publish)
 	}
 
 	serverErr := make(chan error, 1)
