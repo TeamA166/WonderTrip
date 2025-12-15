@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -58,7 +59,7 @@ func (h *PostHandler) Publish(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
 	defer cancel()
 
-	photoPath, err := savePhoto(file)
+	photoPath, err := savePhoto(c, file)
 	if err != nil {
 		fmt.Printf("save photo: %v", err)
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Photo could not be saved"})
@@ -139,7 +140,7 @@ func parseUserID(value interface{}) (uuid.UUID, error) {
 	return uuid.Parse(userIDStr)
 }
 
-func savePhoto(file *fiber.FileHeader) (string, error) {
+func savePhoto(c *fiber.Ctx, file *multipart.FileHeader) (string, error) {
 	const uploadDir = "uploads/photos"
 
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
@@ -149,7 +150,7 @@ func savePhoto(file *fiber.FileHeader) (string, error) {
 	filename := fmt.Sprintf("%s_%s", uuid.NewString(), file.Filename)
 	savePath := filepath.Join(uploadDir, filename)
 
-	if err := fiber.SaveFile(file, savePath); err != nil {
+	if err := c.SaveFile(file, savePath); err != nil {
 		return "", fmt.Errorf("save file: %w", err)
 	}
 
