@@ -1,4 +1,4 @@
-# frontend
+# flutter_application_wondertrip
 
 A new Flutter project.
 
