@@ -37,6 +37,7 @@ class _SignupScreenState extends State<SignupScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // 📡 API isteği başlatılıyor
       final url = Uri.parse('http://127.0.0.1:8080/api/v1/auth/register');
       final response = await http.post(
         url,
@@ -49,21 +50,33 @@ class _SignupScreenState extends State<SignupScreen> {
         }),
       );
 
+      // ✅ KRİTİK DÜZELTME: Async işlemden sonra mounted kontrolü
+      if (!mounted) return;
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         _showSnackBar("Registration successful! Please login.");
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (context) => const LoginScreen())
+        );
       } else {
         final errorData = jsonDecode(response.body);
         _showSnackBar(errorData['error'] ?? "Signup failed");
       }
     } catch (e) {
+      // ✅ KRİTİK DÜZELTME: Hata durumunda da mounted kontrolü
+      if (!mounted) return;
       _showSnackBar("Failed to connect to backend.");
     } finally {
-      setState(() => _isLoading = false);
+      // ✅ KRİTİK DÜZELTME: Durum güncellerken mounted kontrolü
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _showSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
@@ -78,7 +91,10 @@ class _SignupScreenState extends State<SignupScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 30),
-              const Text('Create Account Now!', style: TextStyle(color: Color(0xFFF6F6F6), fontSize: 28, fontWeight: FontWeight.w600)),
+              const Text(
+                'Create Account Now!', 
+                style: TextStyle(color: Color(0xFFF6F6F6), fontSize: 28, fontWeight: FontWeight.w600)
+              ),
               const SizedBox(height: 35),
               _buildField("Name", _nameController),
               _buildField("Surname", _surnameController),
@@ -89,12 +105,19 @@ class _SignupScreenState extends State<SignupScreen> {
               GestureDetector(
                 onTap: _isLoading ? null : _handleSignup,
                 child: Container(
-                  height: 56, width: double.infinity,
-                  decoration: BoxDecoration(color: const Color(0xFFFB8F67), borderRadius: BorderRadius.circular(28)),
+                  height: 56, 
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFB8F67), 
+                    borderRadius: BorderRadius.circular(28)
+                  ),
                   child: Center(
                     child: _isLoading 
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Sign Up', style: TextStyle(color: Color(0xFF212121), fontSize: 20, fontWeight: FontWeight.w700)),
+                      : const Text(
+                          'Sign Up', 
+                          style: TextStyle(color: Color(0xFF212121), fontSize: 20, fontWeight: FontWeight.w700)
+                        ),
                   ),
                 ),
               ),
@@ -103,11 +126,18 @@ class _SignupScreenState extends State<SignupScreen> {
                 child: GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: const Text.rich(TextSpan(children: [
-                    TextSpan(text: 'Already have an account? ', style: TextStyle(color: Color(0xFFF6F6F6), fontSize: 16)),
-                    TextSpan(text: 'Log In', style: TextStyle(color: Color(0xFFFB8F67), fontSize: 16, fontWeight: FontWeight.w800)),
+                    TextSpan(
+                      text: 'Already have an account? ', 
+                      style: TextStyle(color: Color(0xFFF6F6F6), fontSize: 16)
+                    ),
+                    TextSpan(
+                      text: 'Log In', 
+                      style: TextStyle(color: Color(0xFFFB8F67), fontSize: 16, fontWeight: FontWeight.w800)
+                    ),
                   ])),
                 ),
               ),
+              const SizedBox(height: 30),
             ],
           ),
         ),
@@ -122,11 +152,20 @@ class _SignupScreenState extends State<SignupScreen> {
         Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         Container(
-          height: 52, margin: const EdgeInsets.only(bottom: 18),
+          height: 52, 
+          margin: const EdgeInsets.only(bottom: 18),
           decoration: BoxDecoration(color: const Color(0xFFBC9B8F), borderRadius: BorderRadius.circular(26)),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: TextField(controller: controller, obscureText: isPass, decoration: const InputDecoration(border: InputBorder.none), style: const TextStyle(color: Colors.white)),
+            child: TextField(
+              controller: controller, 
+              obscureText: isPass, 
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 14),
+              ), 
+              style: const TextStyle(color: Colors.white)
+            ),
           ),
         ),
       ],

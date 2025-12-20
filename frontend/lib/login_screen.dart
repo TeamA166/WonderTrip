@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_application_wondertrip/signup_screen.dart'; 
+import 'package:flutter_application_wondertrip/signup_screen.dart';
+// 1. Şifremi unuttum ekranını içeri aktarıyoruz
+import 'package:flutter_application_wondertrip/forgot_password_screen.dart'; 
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,14 +13,14 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Controllers to capture text input
+  // Kontrolcüler
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   
   bool _rememberMe = false;
   bool _isLoading = false;
 
-  // --- API Connection Logic ---
+  // --- API Giriş Mantığı ---
   Future<void> _handleLogin() async {
     final String email = _emailController.text.trim();
     final String password = _passwordController.text;
@@ -31,8 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Use 'http://localhost:3000/login' for Web
-      // Use 'http://10.0.2.2:3000/login' for Android Emulator
       final url = Uri.parse('http://127.0.0.1:8080/api/v1/auth/login'); 
 
       final response = await http.post(
@@ -44,22 +44,29 @@ class _LoginScreenState extends State<LoginScreen> {
         }),
       );
 
+      // Async işlem sonrası mounted kontrolü (Güvenlik için)
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _showMessage("Welcome ${data['user']['email']}!");
-        // Navigate to home screen here
+        // Burada ana sayfaya yönlendirme yapılabilir.
       } else {
         final errorData = jsonDecode(response.body);
         _showMessage(errorData['error'] ?? "Login failed");
       }
     } catch (e) {
+      if (!mounted) return;
       _showMessage("Could not connect to server: $e");
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _showMessage(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
@@ -90,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
           height: screenSize.height,
           child: Stack(
             children: [
-              // 1. Title
+              // 1. Başlık
               Positioned(
                 left: 15,
                 top: screenSize.height * 0.12,
@@ -104,7 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 2. Subtitle
+              // 2. Alt Başlık
               Positioned(
                 left: 15,
                 top: screenSize.height * 0.17,
@@ -118,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 3. Email Label
+              // 3. Email Etiketi
               Positioned(
                 left: defaultPadding,
                 top: screenSize.height * 0.25,
@@ -151,6 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: const InputDecoration(
                         border: InputBorder.none,
                         hintText: "example@mail.com",
+                        contentPadding: EdgeInsets.symmetric(vertical: 18),
                       ),
                       style: const TextStyle(color: Colors.white, fontSize: 18),
                     ),
@@ -158,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 5. Password Label
+              // 5. Şifre Etiketi
               Positioned(
                 left: defaultPadding,
                 top: screenSize.height * 0.38,
@@ -172,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 6. Password TextField
+              // 6. Şifre TextField
               Positioned(
                 left: defaultPadding,
                 right: defaultPadding,
@@ -188,14 +196,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: TextField(
                       controller: _passwordController,
                       obscureText: true,
-                      decoration: const InputDecoration(border: InputBorder.none),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 18),
+                      ),
                       style: const TextStyle(color: Colors.white, fontSize: 18),
                     ),
                   ),
                 ),
               ),
 
-              // 7. Remember Me
+              // 7. Beni Hatırla
               Positioned(
                 left: defaultPadding,
                 top: screenSize.height * 0.51,
@@ -222,7 +233,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 8. Login Button
+              // 8. Şifremi Unuttum Bağlantısı (Yeni eklendi)
+              Positioned(
+                right: defaultPadding,
+                top: screenSize.height * 0.51 + 4,
+                child: GestureDetector(
+                  onTap: () => _goToScreen(context, const ForgotPasswordScreen()),
+                  child: const Text(
+                    'Forget password?',
+                    style: TextStyle(
+                      color: Color(0xFFE0E0E0),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ),
+
+              // 9. Giriş Butonu
               Positioned(
                 left: defaultPadding,
                 right: defaultPadding,
@@ -251,7 +279,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 9. Sign Up Link
+              // 10. Kayıt Ol Bağlantısı
               Positioned(
                 left: defaultPadding,
                 right: defaultPadding,
