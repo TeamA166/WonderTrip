@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_wondertrip/new_password_screen.dart';
+import 'package:flutter_application_wondertrip/services/auth_service.dart'; // Import Service
 
 class VerificationScreen extends StatefulWidget {
-  const VerificationScreen({super.key});
+  final String email; // 1. Add email variable
+
+  // 2. Require email in constructor
+  const VerificationScreen({super.key, required this.email});
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
 }
 
 class _VerificationScreenState extends State<VerificationScreen> {
-  // 6 hane için 6 adet FocusNode ve Controller tanımlıyoruz
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
   final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
+  
+  final AuthService _authService = AuthService(); // Initialize Service
+  bool _isLoading = false; // Loading state
 
   @override
   void dispose() {
-    // Bellek sızıntısını önlemek için nesneleri temizliyoruz
     for (var node in _focusNodes) {
       node.dispose();
     }
@@ -25,31 +30,41 @@ class _VerificationScreenState extends State<VerificationScreen> {
     super.dispose();
   }
 
-  // Doğrulama sonucunu gösteren pop-up
-  void _showResultPopup(bool success) {
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Kullanıcı dışarı tıklayıp kapatamasın
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(success ? "Success" : "Error", textAlign: TextAlign.center),
-        content: Text(
-          success ? "Verification code is correct!" : "Invalid code. Please enter all 6 digits correctly.",
-          textAlign: TextAlign.center,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Pop-up'ı kapat
-              if (success && mounted) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const NewPasswordScreen())
-                );
-              }
-            },
-            child: const Center(child: Text("OK", style: TextStyle(fontSize: 18))),
-          )
-        ],
+  // Real API Call Logic
+  Future<void> _handleVerification() async {
+    // Combine the 6 boxes into one string
+    String fullCode = _controllers.map((e) => e.text).join();
+
+    if (fullCode.length != 6) {
+      _showError("Please enter all 6 digits.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // Call Backend
+    final success = await _authService.verifyCode(widget.email, fullCode);
+
+    if (!mounted) return;
+
+    if (success) {
+      // If successful, the Backend set a Cookie.
+      // We can now move to the New Password Screen.
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const NewPasswordScreen())
+      );
+    } else {
+      _showError("Invalid or expired code. Please try again.");
+    }
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
       ),
     );
   }
@@ -82,37 +97,38 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   fontWeight: FontWeight.w600
                 ),
               ),
-              const SizedBox(height: 60),
-              
-              // 6 Haneli Kod Kutucukları (Daireler geri geldi)
+              const SizedBox(height: 10),
+              // Show the user which email they are verifying for (Good UX)
+              Text(
+                'Sent to ${widget.email}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white70, 
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 50),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(6, (index) => _buildCodeBox(index)),
               ),
               
               const SizedBox(height: 60),
-              
-              // Onayla Butonu
+
               GestureDetector(
-                onTap: () {
-                  // Kodun tamamlanıp tamamlanmadığı kontrol ediliyor
-                  String fullCode = _controllers.map((e) => e.text).join();
-                  
-                  // EĞER 6 HANE DE DOLU DEĞİLSE BAŞARI OLMAZ
-                  if (fullCode.length == 6) {
-                    _showResultPopup(true);
-                  } else {
-                    _showResultPopup(false); // Hata pop-up'ı çıkar
-                  }
-                },
+                // Disable button if loading
+                onTap: _isLoading ? null : _handleVerification,
                 child: Container(
                   height: 56,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFB8F67),
+                    color: _isLoading ? Colors.grey : const Color(0xFFFB8F67),
                     borderRadius: BorderRadius.circular(28),
                   ),
-                  child: const Center(
-                    child: Text(
+                  child: Center(
+                    child: _isLoading 
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
                       'Verify', 
                       style: TextStyle(
                         color: Color(0xFF212121), 
@@ -132,11 +148,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   Widget _buildCodeBox(int index) {
     return Container(
-      width: 48, // Tam daire olması için genişlik ve yükseklik eşit
+      width: 48,
       height: 48,
       decoration: const BoxDecoration(
         color: Color(0xFFD9D9D9), 
-        shape: BoxShape.circle, // Daire tasarımı geri yüklendi
+        shape: BoxShape.circle,
       ),
       child: TextField(
         controller: _controllers[index],
@@ -149,7 +165,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
           border: InputBorder.none, 
           counterText: ""
         ),
-        // Herhangi birine tıklarsa oradan başlasın ve metni seçsin
         onTap: () {
           _controllers[index].selection = TextSelection(
             baseOffset: 0,
@@ -158,19 +173,15 @@ class _VerificationScreenState extends State<VerificationScreen> {
         },
         onChanged: (value) {
           if (value.isNotEmpty) {
-            // Eğer karakter girildiyse (yazılıyorsa)
             if (value.length > 1) {
-              // Yanlışlıkla fazla girilirse sadece sonuncuyu al
               _controllers[index].text = value.substring(value.length - 1);
             }
-            // Bir sonraki kutucuğa geç
             if (index < 5) {
               _focusNodes[index + 1].requestFocus();
             } else {
-              _focusNodes[index].unfocus(); // Sonuncuysa klavyeyi kapat
+              _focusNodes[index].unfocus();
             }
           } else {
-            // Eğer silindiyse (boşsa) önceki kutucuğa geri dön
             if (index > 0) {
               _focusNodes[index - 1].requestFocus();
             }
