@@ -57,7 +57,7 @@ func (h *PasswordResetHandler) RequestReset(c *fiber.Ctx) error {
 
 	go func(targetEmail, code string) {
 		subject := "WonderTrip - Password Reset"
-		body := fmt.Sprintf("Hi,\n\nPassword Reset Code: %s\n\nThis code will expired after 10 minutes.", code)
+		body := fmt.Sprintf("Hi,\n\nPassword Reset Code: %s\n\nThis code will be expired after 10 minutes.", code)
 
 		err := utils.SendEmail(targetEmail, subject, body)
 		if err != nil {
@@ -68,7 +68,7 @@ func (h *PasswordResetHandler) RequestReset(c *fiber.Ctx) error {
 
 	// 6. Return Success (Existing code)
 	return c.Status(http.StatusOK).JSON(fiber.Map{
-		"message": "Eğer e-posta kayıtlıysa, doğrulama kodu gönderildi.",
+		"message": "If your email exists in our server we will sent you to the code.",
 	})
 }
 
