@@ -33,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final url = Uri.parse('http://127.0.0.1:8080/api/v1/auth/login'); 
+      final url = Uri.parse('http://10.0.2.2:8080/api/v1/auth/login'); 
 
       final response = await http.post(
         url,
