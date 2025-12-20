@@ -14,7 +14,6 @@ import (
 	"github.com/TeamA166/WonderTrip/internal/database"
 	"github.com/TeamA166/WonderTrip/internal/repository"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
@@ -35,12 +34,15 @@ func main() {
 
 	loadScreenRepo := repository.NewLoadScreenRepository(db)
 	loadScreenHandler := public.NewLoadScreenHandler(loadScreenRepo)
-
+	//Repos
 	userRepo := repository.NewUserRepository(db)
 	postRepo := repository.NewPostRepository(db)
+	resetRepo := repository.NewPResetRepository(db)
+	//Handlers
 	tokenExpiry := time.Duration(cfg.Auth.AccessTokenMinutes) * time.Minute
 	authHandler, err := public.NewAuthHandler(userRepo, cfg.Auth.JWTSecret, tokenExpiry, cfg.Auth.PasswordHashingCost)
 	postHandler := privateapi.NewPostHandler(postRepo)
+	resetHandler := public.NewPasswordResetHandler(resetRepo, userRepo)
 
 	authMiddleware := middleware.NewAuthMiddleware(cfg.Auth.JWTSecret)
 
@@ -50,12 +52,12 @@ func main() {
 
 	app := fiber.New()
 
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "*", // In production, replace * with your flutter domain
-		AllowHeaders:     "Origin, Content-Type, Accept",
-		AllowMethods:     "GET, POST, OPTIONS",
-		AllowCredentials: true,
-	}))
+	// app.Use(cors.New(cors.Config{
+	// 	AllowOrigins:     "*", // In production, replace * with your flutter domain
+	// 	AllowHeaders:     "Origin, Content-Type, Accept",
+	// 	AllowMethods:     "GET, POST, OPTIONS",
+	// 	AllowCredentials: true,
+	// }))
 
 	app.Use(logger.New())
 
@@ -66,6 +68,9 @@ func main() {
 		auth := v1.Group("/auth")
 		auth.Post("/register", authHandler.Register)
 		auth.Post("/login", authHandler.Login)
+		auth.Post("/forgot-password", resetHandler.RequestReset)
+		auth.Post("/verify-code", resetHandler.VerifyOTP)
+		auth.Post("/reset-password", resetHandler.ResetPassword)
 	}
 
 	protected := v1.Group("/protected", authMiddleware)
