@@ -20,6 +20,12 @@ type Config struct {
 		AccessTokenMinutes  int    `mapstructure:"access_token_minutes"`
 		PasswordHashingCost int    `mapstructure:"password_hashing_cost"`
 	} `mapstructure:"auth"`
+	Password struct {
+		JWTSecret string `mapstructure:"temp_jwt_secret"`
+	}
+	Mail struct {
+		AppKey string `mapstructure:"app_key"`
+	}
 }
 
 func LoadConfig() (config Config, err error) {
