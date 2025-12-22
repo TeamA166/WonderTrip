@@ -1,47 +1,75 @@
+import 'dart:io'; // Required for Directory/File access on Android/iOS
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
-import 'package:flutter/foundation.dart'; // <--- YOU MISSED THIS IMPORT
+import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 
 class AuthService {
   // 1. Define Base URL
-  // We use a getter so it calculates the correct URL dynamically based on the platform
   String get baseUrl {
     if (kIsWeb) {
-      return "http://localhost:8080/api/v1/auth"; // Web
+      return "https://api.batuhanalun.com//api/v1/auth"; // Web-http://localhost:8080/api/v1/auth
     } else if (defaultTargetPlatform == TargetPlatform.android) {
-      // 10.0.2.2 is the special IP Android Emulators use to reach your computer
-      return "http://10.0.2.2:8080/api/v1/auth"; 
+      return "https://api.batuhanalun.com/api/v1/auth"; // Android Emulator-http://10.0.2.2:8080/api/v1/auth"
     } else {
-      return "http://127.0.0.1:8080/api/v1/auth"; // iOS Simulator
+      return "https://api.batuhanalun.com/api/v1/auth"; // iOS Simulator-http://127.0.0.1:8080/api/v1/auth
     }
   }
 
-  // 2. Create Singletons (Static)
+  // 2. Create Singletons
   static final Dio _dio = Dio();
-  static final CookieJar _cookieJar = CookieJar();
+  
+  // CHANGED: Use PersistCookieJar to save to disk (Mobile only)
+  static late PersistCookieJar _cookieJar; 
   static bool _configured = false;
 
-  // 3. Constructor
-  AuthService() {
-    if (!_configured) {
-      // For Web support, we cannot use CookieManager (browser handles it).
-      // For Mobile, we MUST use CookieManager.
-      if (!kIsWeb) {
-        _dio.interceptors.add(CookieManager(_cookieJar));
-      } else {
-        // This tells the browser to include cookies in requests
-        _dio.options.extra['withCredentials'] = true; 
-      }
-      
-      _dio.options.connectTimeout = const Duration(seconds: 5);
-      _dio.options.receiveTimeout = const Duration(seconds: 3);
-      
-      _configured = true;
+  // 3. INITIALIZATION (Must call this in main.dart)
+  static Future<void> init() async {
+    if (_configured) return;
+
+    if (!kIsWeb) {
+      // Mobile: Save cookies to the app's secure documents folder
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      final String appDocPath = appDocDir.path;
+
+      _cookieJar = PersistCookieJar(
+        storage: FileStorage("$appDocPath/.cookies/"),
+      );
+
+      _dio.interceptors.add(CookieManager(_cookieJar));
+    } else {
+      // Web: The browser handles cookies automatically.
+      // We just need to tell Dio to allow credentials.
+      _dio.options.extra['withCredentials'] = true;
     }
+
+    _dio.options.connectTimeout = const Duration(seconds: 5);
+    _dio.options.receiveTimeout = const Duration(seconds: 3);
+    
+    _configured = true;
   }
 
   // --- API METHODS ---
+
+  // Check if User is already logged in (Has valid cookies on disk)
+  Future<bool> isLoggedIn() async {
+    if (kIsWeb) return false; // On Web, you usually rely on the backend returning 401
+    
+    // Load cookies for our Base URL
+    // If the list is not empty, it means we have a session saved
+    final uri = Uri.parse(baseUrl);
+    final cookies = await _cookieJar.loadForRequest(uri);
+    
+    return cookies.isNotEmpty;
+  }
+
+  // Logout (Clear cookies from disk)
+  Future<void> logout() async {
+    if (!kIsWeb) {
+      await _cookieJar.deleteAll();
+    }
+  }
 
   Future<bool> requestPasswordReset(String email) async {
     try {
@@ -51,7 +79,6 @@ class AuthService {
       );
       return response.statusCode == 200;
     } catch (e) {
-      // Print the full error to debug console if connection fails
       print("Request Error on $baseUrl: $e");
       return false;
     }
@@ -80,6 +107,29 @@ class AuthService {
     } catch (e) {
       print("Reset Error: $e");
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> login(String email, String password) async {
+    try {
+      final response = await _dio.post(
+        '$baseUrl/login', 
+        data: {
+          'email': email,
+          'password': password,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return response.data; 
+      }
+      return null;
+    } catch (e) {
+      if (e is DioException && e.response != null) {
+        return e.response?.data; 
+      }
+      print("Login Error: $e");
+      return null;
     }
   }
 }

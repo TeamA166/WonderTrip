@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
-// Yeni dosyayı içeri aktardık.
-import 'package:flutter_application_wondertrip/splash_screen.dart'; 
+import 'package:flutter_application_wondertrip/splash_screen.dart';
+// Import AuthService to initialize it
+import 'package:flutter_application_wondertrip/services/auth_service.dart'; 
 
-// Ana fonksiyon: Uygulamanın başlangıç noktası
-void main() {
+void main() async {
+  // 1. Ensure Flutter engine is ready
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Load the saved cookies from the disk
+  await AuthService.init();
+
   runApp(const MyApp());
 }
 
-// Uygulamanın temel widget'ı
 class MyApp extends StatelessWidget {
-  // Const yapıcı metot (constructor) doğru
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // MaterialApp const olabilir, ancak home özelliği const olamaz.
     return const MaterialApp(
-      debugShowCheckedModeBanner: false, // Sağ üstteki "Debug" yazısını kaldırır
+      debugShowCheckedModeBanner: false,
       title: 'Wonder Trip App',
-      // Uygulamanın ilk açılacak ekranı Splash Screen'dir.
       home: AnimatedSplashScreen(), 
     );
   }
