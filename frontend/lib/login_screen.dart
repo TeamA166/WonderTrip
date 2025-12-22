@@ -1,10 +1,13 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+// REMOVED: import 'package:http/http.dart' as http; 
+// REMOVED: import 'dart:convert'; (Dio handles JSON automatically)
+
 import 'package:flutter_application_wondertrip/signup_screen.dart';
 import 'package:flutter_application_wondertrip/main_screen.dart';
-// 1. Şifremi unuttum ekranını içeri aktarıyoruz
 import 'package:flutter_application_wondertrip/forgot_password_screen.dart'; 
+
+// 1. Import AuthService
+import 'services/auth_service.dart'; 
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,14 +17,15 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Kontrolcüler
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  
+  // 2. Initialize Service
+  final AuthService _authService = AuthService();
   
   bool _rememberMe = false;
   bool _isLoading = false;
 
-  // --- API Giriş Mantığı ---
   Future<void> _handleLogin() async {
     final String email = _emailController.text.trim();
     final String password = _passwordController.text;
@@ -33,38 +37,37 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    try {
-      final url = Uri.parse('http://10.0.2.2:8080/api/v1/auth/login'); 
+    // 3. Use AuthService instead of http
+    final responseData = await _authService.login(email, password);
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
+    if (!mounted) return;
+
+    if (responseData != null && !responseData.containsKey('error')) {
+      // SUCCESS
+      // The session cookie is now safely stored in AuthService's CookieJar!
+      
+      // Extract email safely (backend sends: {"user": {"email": "..."}})
+      String userEmail = email;
+      if (responseData['user'] != null && responseData['user']['email'] != null) {
+        userEmail = responseData['user']['email'];
+      }
+
+      _showMessage("Welcome $userEmail!");
+      
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const MainScreen()),
       );
-
-      // Async işlem sonrası mounted kontrolü (Güvenlik için)
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _showMessage("Welcome ${data['user']['email']}!");
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const MainScreen()),
-        );
-      } else {
-        final errorData = jsonDecode(response.body);
-        _showMessage(errorData['error'] ?? "Login failed");
+    } else {
+      // FAILURE
+      String errorMsg = "Login failed";
+      if (responseData != null && responseData['error'] != null) {
+        errorMsg = responseData['error'];
       }
-    } catch (e) {
-      if (!mounted) return;
-      _showMessage("Could not connect to server: $e");
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      _showMessage(errorMsg);
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -90,6 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ... YOUR UI CODE REMAINS EXACTLY THE SAME ...
+    // ... COPY THE REST OF THE BUILD METHOD FROM YOUR PREVIOUS CODE ...
     final Size screenSize = MediaQuery.of(context).size;
     final double defaultPadding = screenSize.width * 0.04;
 
@@ -100,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
           height: screenSize.height,
           child: Stack(
             children: [
-              // 1. Başlık
+              // 1. Title
               Positioned(
                 left: 15,
                 top: screenSize.height * 0.12,
@@ -114,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 2. Alt Başlık
+              // 2. Subtitle
               Positioned(
                 left: 15,
                 top: screenSize.height * 0.17,
@@ -128,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 3. Email Etiketi
+              // 3. Email Label
               Positioned(
                 left: defaultPadding,
                 top: screenSize.height * 0.25,
@@ -142,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 4. Email TextField
+              // 4. Email Input
               Positioned(
                 left: defaultPadding,
                 right: defaultPadding,
@@ -169,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 5. Şifre Etiketi
+              // 5. Password Label
               Positioned(
                 left: defaultPadding,
                 top: screenSize.height * 0.38,
@@ -183,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 6. Şifre TextField
+              // 6. Password Input
               Positioned(
                 left: defaultPadding,
                 right: defaultPadding,
@@ -209,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 7. Beni Hatırla
+              // 7. Remember Me
               Positioned(
                 left: defaultPadding,
                 top: screenSize.height * 0.51,
@@ -236,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 8. Şifremi Unuttum Bağlantısı (Yeni eklendi)
+              // 8. Forgot Password
               Positioned(
                 right: defaultPadding,
                 top: screenSize.height * 0.51 + 4,
@@ -253,7 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 9. Giriş Butonu
+              // 9. Login Button
               Positioned(
                 left: defaultPadding,
                 right: defaultPadding,
@@ -282,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              // 10. Kayıt Ol Bağlantısı
+              // 10. Sign Up
               Positioned(
                 left: defaultPadding,
                 right: defaultPadding,

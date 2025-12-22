@@ -38,7 +38,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
     try {
       // 📡 API isteği başlatılıyor
-      final url = Uri.parse('http://127.0.0.1:8080/api/v1/auth/register');
+      final url = Uri.parse('https://api.batuhanalun.com/api/v1/auth/register');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
