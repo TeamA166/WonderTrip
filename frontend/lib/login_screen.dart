@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_application_wondertrip/signup_screen.dart';
+import 'package:flutter_application_wondertrip/main_screen.dart';
 // 1. Şifremi unuttum ekranını içeri aktarıyoruz
 import 'package:flutter_application_wondertrip/forgot_password_screen.dart'; 
 
@@ -50,7 +51,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _showMessage("Welcome ${data['user']['email']}!");
-        // Burada ana sayfaya yönlendirme yapılabilir.
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+        );
       } else {
         final errorData = jsonDecode(response.body);
         _showMessage(errorData['error'] ?? "Login failed");
