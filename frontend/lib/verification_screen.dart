@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_wondertrip/new_password_screen.dart';
-import 'package:flutter_application_wondertrip/services/auth_service.dart'; // Import Service
 
 class VerificationScreen extends StatefulWidget {
-  final String email; // 1. Add email variable
-
-  // 2. Require email in constructor
-  const VerificationScreen({super.key, required this.email});
+  // ✅ Email parametresi eklendi
+  final String? email;
+  const VerificationScreen({super.key, this.email});
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -15,9 +13,6 @@ class VerificationScreen extends StatefulWidget {
 class _VerificationScreenState extends State<VerificationScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
   final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
-  
-  final AuthService _authService = AuthService(); // Initialize Service
-  bool _isLoading = false; // Loading state
 
   @override
   void dispose() {
@@ -30,41 +25,30 @@ class _VerificationScreenState extends State<VerificationScreen> {
     super.dispose();
   }
 
-  // Real API Call Logic
-  Future<void> _handleVerification() async {
-    // Combine the 6 boxes into one string
-    String fullCode = _controllers.map((e) => e.text).join();
-
-    if (fullCode.length != 6) {
-      _showError("Please enter all 6 digits.");
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    // Call Backend
-    final success = await _authService.verifyCode(widget.email, fullCode);
-
-    if (!mounted) return;
-
-    if (success) {
-      // If successful, the Backend set a Cookie.
-      // We can now move to the New Password Screen.
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => const NewPasswordScreen())
-      );
-    } else {
-      _showError("Invalid or expired code. Please try again.");
-    }
-
-    if (mounted) setState(() => _isLoading = false);
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
+  void _showResultPopup(bool success) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(success ? "Success" : "Error", textAlign: TextAlign.center),
+        content: Text(
+          success ? "Verification code is correct!" : "Invalid code. Please enter all 6 digits correctly.",
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (success && mounted) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const NewPasswordScreen())
+                );
+              }
+            },
+            child: const Center(child: Text("OK", style: TextStyle(fontSize: 18))),
+          )
+        ],
       ),
     );
   }
@@ -97,38 +81,36 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   fontWeight: FontWeight.w600
                 ),
               ),
-              const SizedBox(height: 10),
-              // Show the user which email they are verifying for (Good UX)
-              Text(
-                'Sent to ${widget.email}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white70, 
-                  fontSize: 16,
+              if (widget.email != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  "Sent to ${widget.email}",
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
-              ),
+              ],
               const SizedBox(height: 50),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(6, (index) => _buildCodeBox(index)),
               ),
-              
               const SizedBox(height: 60),
-
               GestureDetector(
-                // Disable button if loading
-                onTap: _isLoading ? null : _handleVerification,
+                onTap: () {
+                  String fullCode = _controllers.map((e) => e.text).join();
+                  if (fullCode.length == 6) {
+                    _showResultPopup(true);
+                  } else {
+                    _showResultPopup(false);
+                  }
+                },
                 child: Container(
                   height: 56,
                   decoration: BoxDecoration(
-                    color: _isLoading ? Colors.grey : const Color(0xFFFB8F67),
+                    color: const Color(0xFFFB8F67),
                     borderRadius: BorderRadius.circular(28),
                   ),
-                  child: Center(
-                    child: _isLoading 
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
+                  child: const Center(
+                    child: Text(
                       'Verify', 
                       style: TextStyle(
                         color: Color(0xFF212121), 
@@ -148,8 +130,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   Widget _buildCodeBox(int index) {
     return Container(
-      width: 48,
-      height: 48,
+      width: 44,
+      height: 44,
       decoration: const BoxDecoration(
         color: Color(0xFFD9D9D9), 
         shape: BoxShape.circle,
@@ -160,7 +142,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black),
+        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
         decoration: const InputDecoration(
           border: InputBorder.none, 
           counterText: ""
