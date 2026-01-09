@@ -64,6 +64,44 @@ class AuthService {
     return cookies.isNotEmpty;
   }
 
+  Future<bool> validateSession() async {
+    try {
+      // 1. Local Check: Do we even have cookies?
+      if (!kIsWeb) {
+        final uri = Uri.parse(baseUrl);
+        final cookies = await _cookieJar.loadForRequest(uri);
+        if (cookies.isEmpty) return false; 
+      }
+
+      // 2. Server Check: Send a request to a protected endpoint
+      // We assume your Go backend has a route like: auth.Get("/me", ...)
+      final response = await _dio.get('$baseUrl/me');
+
+      if (response.statusCode == 200) {
+        return true; // Session is active
+      }
+      
+      // If code reaches here without throwing, but status isn't 200
+      await logout();
+      return false;
+
+    } catch (e) {
+      // 3. Handle 401 Unauthorized (Expired Token)
+      if (e is DioException) {
+        if (e.response?.statusCode == 401) {
+          print("Session expired. Logging out.");
+          await logout(); // Delete the bad cookie
+          return false;
+        }
+      }
+      // If it's a connection error (server down), you might want to return 
+      // true to let them use the app offline, or false to block them.
+      // For security, usually return false.
+      print("Validation Error: $e");
+      return false;
+    }
+  }
+
   // Logout (Clear cookies from disk)
   Future<void> logout() async {
     if (!kIsWeb) {

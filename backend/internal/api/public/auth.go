@@ -213,3 +213,9 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		"message": "Successfully logged out",
 	})
 }
+func (h *AuthHandler) GetMe(c *fiber.Ctx) error {
+	// If the request reaches here, the Middleware has already validated the cookie
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status": "active",
+	})
+}

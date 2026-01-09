@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-// Import screens
 import 'package:flutter_application_wondertrip/onboarding_screen.dart';
-import 'package:flutter_application_wondertrip/main_screen.dart'; // Import Main Screen
-// Import Auth Service
+import 'package:flutter_application_wondertrip/main_screen.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 
 class AnimatedSplashScreen extends StatefulWidget {
@@ -18,57 +16,58 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   
-  bool _isTransitioning = false;
-  
-  // Variable to store login status
-  bool? _isLoggedIn; 
+  // Three states: null (loading), true (valid), false (invalid)
+  bool? _isSessionValid; 
 
   @override
   void initState() {
     super.initState();
     
-    // 1. Check Session immediately when screen loads
-    _checkLoginStatus();
-
+    // Start Animation and Check simultaneously
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
 
     _scaleAnimation = Tween<double>(begin: 0.0, end: 1.5).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOut,
-      ),
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
 
     _controller.forward();
+    
+    // Check with server
+    _checkSession();
   }
 
-  // Helper function to check auth
-  Future<void> _checkLoginStatus() async {
+  Future<void> _checkSession() async {
     final authService = AuthService();
-    bool loggedIn = await authService.isLoggedIn();
-    setState(() {
-      _isLoggedIn = loggedIn;
-    });
+    // This now ping the server to verify the cookie
+    bool isValid = await authService.validateSession();
+    
+    if (mounted) {
+      setState(() {
+        _isSessionValid = isValid;
+      });
+      
+      // OPTIONAL: Auto-navigate when check is done?
+      // If you want auto-navigation, uncomment the line below:
+      // _handleNavigation(); 
+    }
   }
 
-  // MODIFIED NAVIGATION FUNCTION
   void _handleNavigation() {
-    // Wait for animation to be ready AND for login check to finish
-    if (_scaleAnimation.value >= 1.0 && !_isTransitioning && _isLoggedIn != null) {
-        
-        setState(() => _isTransitioning = true);
+    // If the check is still running, show a message or wait
+    if (_isSessionValid == null) {
+      print("Still checking session...");
+      return; 
+    }
 
-        // 2. Decide where to go
-        if (_isLoggedIn == true) {
-          // User is logged in -> Go to Main Screen
+    if (_scaleAnimation.value >= 1.0) {
+        if (_isSessionValid == true) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const MainScreen()),
           );
         } else {
-          // User is NOT logged in -> Go to Onboarding
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const OnboardingScreen()),
           );
@@ -84,14 +83,14 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Calculate dimensions
     final Size screenSize = MediaQuery.of(context).size;
     final double maxDimension = screenSize.width > screenSize.height 
-        ? screenSize.width 
-        : screenSize.height;
+        ? screenSize.width : screenSize.height;
     final double circleSize = maxDimension * 2.0; 
 
     return GestureDetector(
-      onTap: _handleNavigation, // Call the intelligent navigation
+      onTap: _handleNavigation, 
       child: Scaffold(
         backgroundColor: const Color(0xFFE0E0E0),
         body: Center(
@@ -109,17 +108,18 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
                   ),
                   child: Center(
                     child: Opacity(
+                      // Only show logo when animation finishes
                       opacity: _scaleAnimation.value > 1.0 ? 1.0 : 0.0,
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center, 
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Image.asset(
-                            'assets/images/logo.png', 
-                            width: 250, 
-                            height: 250, 
-                          ),
+                          Image.asset('assets/images/logo.png', width: 250, height: 250),
+                          // Optional: Show loading indicator if check is slow
+                          if (_isSessionValid == null)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 20),
+                              child: CircularProgressIndicator(color: Colors.white),
+                            )
                         ],
                       ),
                     ),

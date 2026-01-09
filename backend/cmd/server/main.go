@@ -71,6 +71,9 @@ func main() {
 		auth.Post("/forgot-password", resetHandler.RequestReset)
 		auth.Post("/verify-code", resetHandler.VerifyOTP)
 		auth.Post("/reset-password", resetHandler.ResetPassword)
+		auth.Post("/logout", authHandler.Logout)
+		auth.Get("/me", authMiddleware, authHandler.GetMe)
+
 	}
 
 	protected := v1.Group("/protected", authMiddleware)
