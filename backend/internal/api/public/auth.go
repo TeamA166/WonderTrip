@@ -197,3 +197,19 @@ func validateRegisterRequest(req core.RegisterRequest) error {
 
 	return nil
 }
+
+func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	// Clear the cookie by setting an expired date
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour), // Set to 1 hour ago
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Strict",
+	})
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Successfully logged out",
+	})
+}
