@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_wondertrip/map_screen.dart';
 import 'package:flutter_application_wondertrip/place_detail_screen.dart';
 import 'package:flutter_application_wondertrip/settings_screen.dart';
+import 'package:flutter_application_wondertrip/my_page_screen.dart'; 
+import 'package:flutter_application_wondertrip/travelers_posts_screen.dart'; 
+import 'package:flutter_application_wondertrip/edit_profile_screen.dart'; // ✅ EditProfileScreen importu eklendi
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -184,7 +187,7 @@ class _MainScreenState extends State<MainScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(
                           children: [
-                            _buildPlaceCard(context, "Manufaktura", "assets/images/manufaktura1.png"), // Sadece buraya 1 eklendi
+                            _buildPlaceCard(context, "Manufaktura", "assets/images/manufaktura1.png"),
                             const SizedBox(width: 20),
                             _buildPlaceCard(context, "EC1 Łódź", "assets/images/ec1.png"),
                             const SizedBox(width: 20),
@@ -208,23 +211,43 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                     ),
 
-                    const Positioned(
+                    // Travelers' Posts Başlığı Navigasyona Bağlandı
+                    Positioned(
                       left: 21,
                       top: 680,
-                      child: Text("Travelers' posts!", style: TextStyle(color: Color(0xFF212121), fontSize: 22, fontFamily: 'Roboto', fontWeight: FontWeight.w600)),
+                      child: GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TravelersPostsScreen())),
+                        child: const Text(
+                          "Travelers' posts!", 
+                          style: TextStyle(color: Color(0xFF212121), fontSize: 22, fontFamily: 'Roboto', fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     ),
 
-                    const Positioned(
+                    Positioned(
                       left: 21,
                       top: 715,
-                      child: Text(
-                        'A favorite among travelers',
-                        style: TextStyle(
-                          color: Color(0xFF616161),
-                          fontSize: 20,
-                          fontFamily: 'Roboto',
-                          fontWeight: FontWeight.w400,
+                      child: GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TravelersPostsScreen())),
+                        child: const Text(
+                          'A favorite among travelers',
+                          style: TextStyle(
+                            color: Color(0xFF616161),
+                            fontSize: 20,
+                            fontFamily: 'Roboto',
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
+                      ),
+                    ),
+
+                    // Travelers' Posts yanına ok ikonu eklendi
+                    Positioned(
+                      left: 372,
+                      top: 698,
+                      child: GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TravelersPostsScreen())),
+                        child: const Icon(Icons.arrow_forward_ios, size: 16, color: Color(0xFF212121)),
                       ),
                     ),
 
@@ -237,11 +260,11 @@ class _MainScreenState extends State<MainScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 23),
                         child: Row(
                           children: [
-                            _buildPostCard("https://placehold.co/280x220/BC9B8F/FFFFFF.png"),
+                            _buildPostCard(context, "https://placehold.co/280x220/BC9B8F/FFFFFF.png"),
                             const SizedBox(width: 20),
-                            _buildPostCard("https://placehold.co/280x220/E0E0E0/212121.png"),
+                            _buildPostCard(context, "https://placehold.co/280x220/E0E0E0/212121.png"),
                             const SizedBox(width: 20),
-                            _buildPostCard("https://placehold.co/280x220/FB8F67/FFFFFF.png"),
+                            _buildPostCard(context, "https://placehold.co/280x220/FB8F67/FFFFFF.png"),
                           ],
                         ),
                       ),
@@ -284,34 +307,54 @@ class _MainScreenState extends State<MainScreen> {
             decoration: const BoxDecoration(color: Color(0xFF0C7489)),
             child: Stack(
               children: [
+                // ✅ Profil PP Alanı GestureDetector ile sarmalandı
                 Positioned(
                   left: 29,
                   top: 39,
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: const ShapeDecoration(color: Color(0xFFF6F6F6), shape: OvalBorder()),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _isMenuOpen = false);
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
+                    },
+                    child: Container(
+                      width: 100,
+                      height: 100,
+                      decoration: const ShapeDecoration(color: Color(0xFFF6F6F6), shape: OvalBorder()),
+                    ),
                   ),
                 ),
                 Positioned(
                   left: 34,
                   top: 44,
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: ShapeDecoration(
-                      color: const Color(0xFFF6F6F6),
-                      shape: OvalBorder(side: const BorderSide(width: 4, color: Color(0xFFE0E0E0))),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _isMenuOpen = false);
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
+                    },
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: ShapeDecoration(
+                        color: const Color(0xFFF6F6F6),
+                        shape: OvalBorder(side: const BorderSide(width: 4, color: Color(0xFFE0E0E0))),
+                      ),
+                      child: const Icon(Icons.person, size: 50, color: Color(0xFF0C7489)),
                     ),
-                    child: const Icon(Icons.person, size: 50, color: Color(0xFF0C7489)),
                   ),
                 ),
-                const Positioned(
+                // ✅ Profil İsmi GestureDetector ile sarmalandı
+                Positioned(
                   left: 145,
                   top: 65,
-                  child: Text(
-                    'Adam',
-                    style: TextStyle(color: Colors.white, fontSize: 26, fontFamily: 'Roboto', fontWeight: FontWeight.w600),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _isMenuOpen = false);
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
+                    },
+                    child: const Text(
+                      'Adam',
+                      style: TextStyle(color: Colors.white, fontSize: 26, fontFamily: 'Roboto', fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
                 
@@ -334,14 +377,24 @@ class _MainScreenState extends State<MainScreen> {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const MapScreen()));
                       }),
                       const SizedBox(height: 35),
-                      _buildDrawerItem(Icons.person_outline_rounded, 'My Page', () {}),
+                      // My Page Navigation
+                      _buildDrawerItem(Icons.person_outline_rounded, 'My Page', () {
+                        setState(() => _isMenuOpen = false);
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const MyPageScreen()));
+                      }),
+                      const SizedBox(height: 35),
+                      // Traveler's Posts Navigation
+                      _buildDrawerItem(Icons.public_rounded, "Traveler's Posts", () {
+                        setState(() => _isMenuOpen = false);
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const TravelersPostsScreen()));
+                      }),
                       const SizedBox(height: 35),
                       _buildDrawerItem(Icons.settings_outlined, 'Settings', () {
                         setState(() => _isMenuOpen = false);
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
                       }),
                       
-                      const SizedBox(height: 195), 
+                      const SizedBox(height: 125), 
                       Container(width: 250, height: 1, color: const Color(0xFF119DA4)),
                       const SizedBox(height: 35),
                       _buildDrawerItem(Icons.logout_rounded, 'Log Out', () {
@@ -395,7 +448,6 @@ class _MainScreenState extends State<MainScreen> {
                 assetPath,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
-                  // Görsel yüklenemezse debug bilgisini ekrana yansıtıyoruz
                   debugPrint("Asset Error for '$assetPath': $error");
                   return Container(
                     color: const Color(0xFF0C7489).withValues(alpha: 0.1),
@@ -439,13 +491,17 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildPostCard(String url) {
-    return Container(
-      width: 280,
-      height: 220,
-      decoration: ShapeDecoration(
-        image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+  // Traveler's Posts Kartları da Navigasyona Bağlandı
+  Widget _buildPostCard(BuildContext context, String url) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TravelersPostsScreen())),
+      child: Container(
+        width: 280,
+        height: 220,
+        decoration: ShapeDecoration(
+          image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        ),
       ),
     );
   }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_wondertrip/verification_screen.dart';
+import 'verification_screen.dart';
 // Not: Gerçek cihazdan resim seçmek için pubspec.yaml dosyasına 'image_picker' eklenmelidir.
 
 class EditProfileScreen extends StatefulWidget {
@@ -92,6 +92,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _buildGenderOption("Male"),
               _buildGenderOption("Female"),
               _buildGenderOption("Prefer not to say"),
+              // ✅ 4. Seçenek Eklendi: Not Specified (Belirtilmedi)
+              _buildGenderOption("Not specified"),
             ],
           ),
         );
@@ -133,7 +135,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           TextButton(
             onPressed: () {
-              // Onaylandığında Login ekranına gönder ve tüm rotaları temizle
               Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
             },
             child: const Text("Yes, Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
@@ -179,7 +180,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         width: size.width,
         child: Stack(
           children: [
-            // 1. Üst Gradient Oval Alan (✅ Renkler Geri Yüklendi)
+            // 1. Üst Gradient Oval Alan
             Positioned(
               left: -size.width * 0.05,
               top: -size.height * 0.15,

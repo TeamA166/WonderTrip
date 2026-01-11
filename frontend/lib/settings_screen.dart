@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-// Dosyaların birbiriyle iletişim kurabilmesi için gerekli relative importlar
 import 'legal_screens.dart';
 import 'edit_profile_screen.dart';
+import 'my_page_screen.dart';
+import 'travelers_posts_screen.dart'; // ✅ TravelersPostsScreen için import
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,9 +15,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Profil bilgileri için değişkenler
   String name = "Adam";
   String surname = "Surname";
-  bool isImageLoaded = false;
 
-  // ✅ Yeni: Dil seçim pop-up'ı
+  // Dil seçim pop-up'ı
   void _showLanguageDialog() {
     showDialog(
       context: context,
@@ -46,7 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Çıkış yapma onayı için modern diyalog penceresi
+  // Çıkış yapma onayı
   void _showLogoutConfirmation() {
     showDialog(
       context: context,
@@ -61,7 +61,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () {
-              // Uygulamadan çıkış yapıp Login ekranına yönlendirir
               Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
             },
             child: const Text("Yes, Log Out", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
@@ -82,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         height: size.height,
         child: Stack(
           children: [
-            // 1. Üst Alan: Mavi-Turkuaz Gradient Oval Tasarım
+            // 1. Üst Alan Gradient Oval Tasarım
             Positioned(
               left: -size.width * 0.05,
               top: -size.height * 0.15,
@@ -100,7 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            // 2. Navigasyon: Geri Butonu
+            // 2. Geri Butonu
             Positioned(
               left: 16,
               top: 52,
@@ -118,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            // 3. Profil Görseli: Daire ve 'P' Harfi
+            // 3. Profil Görseli
             Positioned(
               left: 0,
               right: 0,
@@ -135,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            // 4. Kullanıcı Bilgisi: İsim ve Soyisim
+            // 4. Kullanıcı Bilgisi
             Positioned(
               left: 0,
               right: 0,
@@ -146,7 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            // 5. Ayarlar Menüsü: ListView ile Kaydırılabilir Liste
+            // 5. Ayarlar Menüsü
             Positioned(
               left: 16,
               right: 16,
@@ -155,14 +154,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  // ✅ GÜNCELLENDİ: Language butonu artık pop-up açıyor
                   _buildMenuButton('Language', value: 'English', onTap: _showLanguageDialog),
                   const SizedBox(height: 12),
                   _buildMenuButton('Edit Profile', onTap: () {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
                   }),
                   const SizedBox(height: 12),
-                  _buildMenuButton('My Page', onTap: () {}),
+                  
+                  // My Page Navigation
+                  _buildMenuButton('My Page', onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MyPageScreen()));
+                  }),
+                  const SizedBox(height: 12),
+                  
+                  // Traveler’s Posts Navigation
+                  _buildMenuButton('Traveler’s Posts', onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const TravelersPostsScreen()));
+                  }),
+                  
                   const SizedBox(height: 12),
                   _buildMenuButton('Privacy Policy', onTap: () {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()));
@@ -173,7 +182,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }),
                   const SizedBox(height: 12),
                   _buildMenuButton('Log Out', onTap: _showLogoutConfirmation),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
@@ -197,7 +206,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title, style: const TextStyle(color: Color(0xFF212121), fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(
+              title, 
+              style: const TextStyle(
+                color: Color(0xFF212121), 
+                fontSize: 16, 
+                fontFamily: 'Roboto',
+                fontWeight: FontWeight.w600
+              )
+            ),
             Row(
               children: [
                 if (value != null) Text(value, style: const TextStyle(color: Color(0xFF616161), fontSize: 14)),
