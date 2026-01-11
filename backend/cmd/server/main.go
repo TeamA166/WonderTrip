@@ -38,12 +38,13 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	postRepo := repository.NewPostRepository(db)
 	resetRepo := repository.NewPResetRepository(db)
+
 	//Handlers
 	tokenExpiry := time.Duration(cfg.Auth.AccessTokenMinutes) * time.Minute
 	authHandler, err := public.NewAuthHandler(userRepo, cfg.Auth.JWTSecret, tokenExpiry, cfg.Auth.PasswordHashingCost)
 	postHandler := privateapi.NewPostHandler(postRepo)
 	resetHandler := public.NewPasswordResetHandler(resetRepo, userRepo)
-
+	profileHandler := privateapi.NewProfileHandler(userRepo)
 	authMiddleware := middleware.NewAuthMiddleware(cfg.Auth.JWTSecret)
 
 	if err != nil {
@@ -79,6 +80,7 @@ func main() {
 	protected := v1.Group("/protected", authMiddleware)
 	{
 		protected.Post("/posts", postHandler.Publish)
+		protected.Get("/profile-photo", profileHandler.GetProfilePhoto)
 	}
 
 	serverErr := make(chan error, 1)

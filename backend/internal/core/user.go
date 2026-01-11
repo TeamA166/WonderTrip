@@ -13,6 +13,7 @@ type User struct {
 	Role         string    `json:"role" db:"role"`
 	Surname      string    `json:"surname" db:"surname"`
 	PasswordHash string    `json:"-" db:"password_hash"`
+	ProfilePath  string    `json:"profile_path" db:"profile_path"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }

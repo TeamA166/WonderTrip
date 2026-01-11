@@ -7,12 +7,14 @@ import (
 	"fmt"
 
 	"github.com/TeamA166/WonderTrip/internal/core"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
 type UserRepository interface {
 	CreateUser(ctx context.Context, user core.User) (core.User, error)
 	GetByEmail(ctx context.Context, email string) (core.User, error)
+	GetById(ctx context.Context, uuid uuid.UUID) (core.User, error)
 }
 
 type userRepository struct {
@@ -25,12 +27,14 @@ func NewUserRepository(db *sqlx.DB) UserRepository {
 
 func (r *userRepository) CreateUser(ctx context.Context, user core.User) (core.User, error) {
 	const query = `
-		INSERT INTO users (email, password_hash, name, surname)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO users (email, password_hash, name, surname, profile_path)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, email, name, surname, password_hash, created_at, updated_at`
 
 	var created core.User
-	if err := r.db.GetContext(ctx, &created, query, user.Email, user.PasswordHash, user.Name, user.Surname); err != nil {
+
+	const profilePath = "uploads/profile/Default_pfp.jpg"
+	if err := r.db.GetContext(ctx, &created, query, user.Email, user.PasswordHash, user.Name, user.Surname, profilePath); err != nil {
 		return core.User{}, fmt.Errorf("repository: create user: %w", err)
 	}
 
@@ -53,4 +57,17 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (core.Use
 	}
 
 	return usr, nil
+}
+func (r *userRepository) GetById(ctx context.Context, uuid uuid.UUID) (core.User, error) {
+	const query = `
+	SELECT id, email, name, surname, profile_path
+	FROM users
+	WHERE id = $1
+	LIMIT 1`
+
+	var user core.User
+	if err := r.db.GetContext(ctx, &user, query, uuid); err != nil {
+		return core.User{}, fmt.Errorf("repository: get user by id: %w", err)
+	}
+	return user, nil
 }
