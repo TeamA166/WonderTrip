@@ -80,7 +80,13 @@ func main() {
 	protected := v1.Group("/protected", authMiddleware)
 	{
 		protected.Post("/posts", postHandler.Publish)
+		protected.Get("/posts", postHandler.GetVerifiedPosts)
+		protected.Get("/posts/unverified", postHandler.GetUnverifiedPosts)
+		protected.Get("/posts/photo/:filename", postHandler.GetPostPhoto)
+
 		protected.Get("/profile-photo", profileHandler.GetProfilePhoto)
+		protected.Get("/profile", profileHandler.GetProfile)
+
 	}
 
 	serverErr := make(chan error, 1)

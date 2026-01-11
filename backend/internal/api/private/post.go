@@ -156,3 +156,54 @@ func savePhoto(c *fiber.Ctx, file *multipart.FileHeader) (string, error) {
 
 	return savePath, nil
 }
+func (h *PostHandler) GetVerifiedPosts(c *fiber.Ctx) error {
+	return h.fetchPostsWithPagination(c, true)
+}
+
+func (h *PostHandler) GetUnverifiedPosts(c *fiber.Ctx) error {
+	return h.fetchPostsWithPagination(c, false)
+}
+
+func (h *PostHandler) fetchPostsWithPagination(c *fiber.Ctx, wantVerified bool) error {
+
+	page, err := strconv.Atoi(c.Query("page", "1"))
+	if err != nil || page < 1 {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid page number"})
+	}
+
+	const limit = 5
+	offset := (page - 1) * limit
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+
+	posts, err := h.repo.GetPostsByStatus(ctx, wantVerified, limit, offset)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch posts"})
+	}
+
+	return c.Status(http.StatusOK).JSON(posts)
+}
+
+func (h *PostHandler) GetPostPhoto(c *fiber.Ctx) error {
+
+	filename := c.Params("filename")
+
+	if filename == "" || containsDotDot(filename) {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid filename"})
+	}
+
+	const uploadDir = "uploads/photos"
+	filePath := fmt.Sprintf("%s/%s", uploadDir, filename)
+
+	return c.SendFile(filePath)
+}
+
+func containsDotDot(v string) bool {
+	for i := 0; i < len(v)-1; i++ {
+		if v[i] == '.' && v[i+1] == '.' {
+			return true
+		}
+	}
+	return false
+}

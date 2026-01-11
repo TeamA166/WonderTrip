@@ -8,6 +8,7 @@ CREATE TABLE posts (
     rating INTEGER CHECK (rating >= 0 AND rating <= 5) NOT NULL DEFAULT 0,
     coordinates VARCHAR(255) NOT NULL,
     photo_path VARCHAR(255),
+    verified BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

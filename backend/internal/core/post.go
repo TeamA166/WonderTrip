@@ -14,6 +14,7 @@ type Post struct {
 	Rating      int       `json:"rating" db:"rating"`
 	Coordinates string    `json:"coordinates" db:"coordinates"`
 	PhotoPath   string    `json:"photo_path" db:"photo_path"`
+	Verified    bool      `json:"verified" db:"verified"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }

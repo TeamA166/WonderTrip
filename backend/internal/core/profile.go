@@ -1,7 +1,8 @@
 package core
 
-type GetProfileResponse struct {
-	Email   string `json:"email" db:"email"`
-	Name    string `json:"name" db:"name"`
-	Surname string `json:"surname" db:"surname"`
+type ProfileResponse struct {
+	ID      string `json:"id"`
+	Email   string `json:"email"`
+	Name    string `json:"name"`
+	Surname string `json:"surname"`
 }

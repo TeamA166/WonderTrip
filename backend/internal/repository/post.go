@@ -10,6 +10,7 @@ import (
 
 type PostRepository interface {
 	CreatePost(ctx context.Context, post core.Post) (core.Post, error)
+	GetPostsByStatus(ctx context.Context, isVerified bool, limit int, offset int) ([]core.Post, error)
 }
 
 type postRepository struct {
@@ -32,4 +33,22 @@ func (r *postRepository) CreatePost(ctx context.Context, post core.Post) (core.P
 	}
 
 	return created, nil
+}
+
+func (r *postRepository) GetPostsByStatus(ctx context.Context, isVerified bool, limit int, offset int) ([]core.Post, error) {
+
+	const query = `
+        SELECT id, user_id, title, description, rating, coordinates, photo_path, verified, created_at, updated_at
+        FROM posts
+        WHERE verified = $1 
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3`
+
+	posts := []core.Post{}
+
+	if err := r.db.SelectContext(ctx, &posts, query, isVerified, limit, offset); err != nil {
+		return nil, fmt.Errorf("repository: get posts by status: %w", err)
+	}
+
+	return posts, nil
 }
