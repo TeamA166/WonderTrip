@@ -417,38 +417,89 @@ class AuthService {
       return false;
     }
   }
+  // Get Comments
+  Future<List<Comment>> getComments(String postId) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.get('$protectedUrl/posts/$postId/comments');
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = response.data;
+        return data.map((json) => Comment.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Get Comments Error: $e");
+      return [];
+    }
+  }
+
+  // Add Comment
+  Future<bool> addComment(String postId, String content) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.post(
+        '$protectedUrl/posts/$postId/comments',
+        data: {'content': content},
+      );
+      return response.statusCode == 201;
+    } catch (e) {
+      debugPrint("Add Comment Error: $e");
+      return false;
+    }
+  }
 }
 
 // --- DATA MODEL ---
 
 class Post {
   final String id;
+  final String userId;
   final String title;
   final String description;
   final int rating;
   final String photoPath;
-  final String coordinates;
   final bool verified;
+  final String coordinates; // ✅ ADD THIS
 
   Post({
     required this.id,
+    required this.userId,
     required this.title,
     required this.description,
     required this.rating,
     required this.photoPath,
-    required this.coordinates,
     required this.verified,
+    required this.coordinates, // ✅ ADD THIS
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
     return Post(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      description: json['description'] ?? '',
-      rating: json['rating'] ?? 0,
-      photoPath: json['photo_path'] ?? '',
-      coordinates: json['coordinates'] ?? '',
+      id: json['id'],
+      userId: json['user_id'] ?? "",
+      title: json['title'],
+      description: json['description'],
+      rating: json['rating'],
+      photoPath: json['photo_path'],
       verified: json['verified'] ?? false,
+      coordinates: json['coordinates'] ?? "", // ✅ ADD THIS (Default to empty if missing)
+    );
+  }
+}
+class Comment {
+  final String id;
+  final String content;
+  final String userName;
+  final String createdAt;
+
+  Comment({required this.id, required this.content, required this.userName, required this.createdAt});
+
+  factory Comment.fromJson(Map<String, dynamic> json) {
+    return Comment(
+      id: json['id'],
+      content: json['content'],
+      userName: json['user_name'] ?? "Unknown",
+      createdAt: json['created_at'],
     );
   }
 }

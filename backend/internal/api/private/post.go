@@ -207,3 +207,135 @@ func containsDotDot(v string) bool {
 	}
 	return false
 }
+
+// GET /api/v1/protected/posts/me
+func (h *PostHandler) GetMyPosts(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+
+	posts, err := h.repo.GetPostsByUserID(ctx, userID)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch posts"})
+	}
+
+	return c.Status(http.StatusOK).JSON(posts)
+}
+
+// DELETE /api/v1/protected/posts/:id
+func (h *PostHandler) DeletePost(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	postID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID"})
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+
+	if err := h.repo.DeletePost(ctx, postID, userID); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.SendStatus(http.StatusOK)
+}
+
+// PUT /api/v1/protected/posts/:id
+func (h *PostHandler) UpdatePost(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	postID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID"})
+	}
+
+	// Parse Body (Title, Description, Rating)
+	var req core.PostPublishReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body"})
+	}
+
+	// Convert Rating string to int if necessary, or assume struct handles it
+	// For simplicity, reusing Post structure logic
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+
+	post := core.Post{
+		ID:          postID,
+		UserID:      userID,
+		Title:       req.Title,
+		Description: req.Description,
+		Rating:      *req.Rating, // Assuming not null in update for now
+	}
+
+	if err := h.repo.UpdatePost(ctx, post); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Update failed"})
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{"message": "Updated"})
+}
+
+// POST /api/v1/protected/posts/:id/comments
+func (h *PostHandler) AddComment(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	postID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Post ID"})
+	}
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := c.BodyParser(&req); err != nil || req.Content == "" {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Content required"})
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+
+	comment := core.Comment{
+		PostID:  postID,
+		UserID:  userID,
+		Content: req.Content,
+	}
+
+	if err := h.repo.CreateComment(ctx, comment); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to add comment"})
+	}
+
+	return c.Status(http.StatusCreated).JSON(fiber.Map{"message": "Comment added"})
+}
+
+// GET /api/v1/protected/posts/:id/comments
+func (h *PostHandler) GetComments(c *fiber.Ctx) error {
+	postID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Post ID"})
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+
+	comments, err := h.repo.GetCommentsByPostID(ctx, postID)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch comments"})
+	}
+
+	return c.Status(http.StatusOK).JSON(comments)
+}

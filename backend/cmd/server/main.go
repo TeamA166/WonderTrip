@@ -86,6 +86,9 @@ func main() {
 		protected.Get("/posts", postHandler.GetVerifiedPosts)
 		protected.Get("/posts/unverified", postHandler.GetUnverifiedPosts)
 		protected.Get("/posts/photo/:filename", postHandler.GetPostPhoto)
+		protected.Get("/posts/me", postHandler.GetMyPosts)
+		protected.Delete("/posts/:id", postHandler.DeletePost)
+		protected.Put("/posts/:id", postHandler.UpdatePost)
 
 		protected.Get("/profile-photo", profileHandler.GetProfilePhoto)
 		protected.Get("/profile", profileHandler.GetProfile)
@@ -93,6 +96,9 @@ func main() {
 
 		protected.Post("/profile-photo", profileHandler.UploadProfilePhoto)
 		protected.Put("/password", profileHandler.ChangePassword)
+
+		protected.Post("/posts/:id/comments", postHandler.AddComment)
+		protected.Get("/posts/:id/comments", postHandler.GetComments)
 
 	}
 

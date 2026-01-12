@@ -44,6 +44,8 @@ dependencies:
   geolocator: ^10.1.0
   path_provider: ^2.1.2
   image_picker: ^1.0.7    # Helper for Latitude/Longitude handling   # To get user permissions and location
+  cached_network_image: ^3.3.0
+  url_launcher: ^6.2.0
   
 dev_dependencies:
   flutter_test:

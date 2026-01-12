@@ -5,12 +5,19 @@ import (
 	"fmt"
 
 	"github.com/TeamA166/WonderTrip/internal/core"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
 type PostRepository interface {
 	CreatePost(ctx context.Context, post core.Post) (core.Post, error)
 	GetPostsByStatus(ctx context.Context, isVerified bool, limit int, offset int) ([]core.Post, error)
+	GetPostsByUserID(ctx context.Context, userID uuid.UUID) ([]core.Post, error)
+	DeletePost(ctx context.Context, postID uuid.UUID, userID uuid.UUID) error
+	UpdatePost(ctx context.Context, post core.Post) error
+	GetPostByID(ctx context.Context, postID uuid.UUID) (core.Post, error)
+	CreateComment(ctx context.Context, comment core.Comment) error
+	GetCommentsByPostID(ctx context.Context, postID uuid.UUID) ([]core.Comment, error)
 }
 
 type postRepository struct {
@@ -51,4 +58,82 @@ func (r *postRepository) GetPostsByStatus(ctx context.Context, isVerified bool, 
 	}
 
 	return posts, nil
+}
+func (r *postRepository) GetPostsByUserID(ctx context.Context, userID uuid.UUID) ([]core.Post, error) {
+	// Fetch all posts for a specific user
+	const query = `SELECT id, user_id, title, description, rating, coordinates, photo_path, verified, created_at FROM posts WHERE user_id = $1 ORDER BY created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []core.Post
+	for rows.Next() {
+		var p core.Post
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, nil
+}
+
+func (r *postRepository) DeletePost(ctx context.Context, postID uuid.UUID, userID uuid.UUID) error {
+	// Only delete if the ID and UserID match (Security check)
+	const query = `DELETE FROM posts WHERE id = $1 AND user_id = $2`
+	res, err := r.db.ExecContext(ctx, query, postID, userID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("post not found or unauthorized")
+	}
+	return nil
+}
+
+func (r *postRepository) UpdatePost(ctx context.Context, p core.Post) error {
+	const query = `UPDATE posts SET title=$1, description=$2, rating=$3 WHERE id=$4 AND user_id=$5`
+	_, err := r.db.ExecContext(ctx, query, p.Title, p.Description, p.Rating, p.ID, p.UserID)
+	return err
+}
+
+func (r *postRepository) GetPostByID(ctx context.Context, postID uuid.UUID) (core.Post, error) {
+	const query = `SELECT id, user_id, title, description, rating FROM posts WHERE id = $1`
+	var p core.Post
+	err := r.db.QueryRowContext(ctx, query, postID).Scan(&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating)
+	return p, err
+}
+func (r *postRepository) CreateComment(ctx context.Context, c core.Comment) error {
+	const query = `INSERT INTO comments (post_id, user_id, content) VALUES ($1, $2, $3)`
+	_, err := r.db.ExecContext(ctx, query, c.PostID, c.UserID, c.Content)
+	return err
+}
+
+func (r *postRepository) GetCommentsByPostID(ctx context.Context, postID uuid.UUID) ([]core.Comment, error) {
+	// Join with users table to get the name of the commenter
+	const query = `
+        SELECT c.id, c.post_id, c.user_id, c.content, c.created_at, u.name 
+        FROM comments c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.post_id = $1
+        ORDER BY c.created_at ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, postID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var comments []core.Comment
+	for rows.Next() {
+		var c core.Comment
+		if err := rows.Scan(&c.ID, &c.PostID, &c.UserID, &c.Content, &c.CreatedAt, &c.UserName); err != nil {
+			return nil, err
+		}
+		comments = append(comments, c)
+	}
+	return comments, nil
 }
