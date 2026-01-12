@@ -375,20 +375,35 @@ class AuthService {
   }
 
   // Update a post (Simple text update)
-  Future<bool> updatePost(String postId, String title, String description, int rating) async {
+// Update Post (Handles Optional Photo)
+  Future<bool> updatePost(String postId, String title, String description, int rating, String coordinates, File? newPhoto) async {
     try {
       final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+
+      // Prepare data
+      Map<String, dynamic> map = {
+        'title': title,
+        'description': description,
+        'rating': rating,
+        'coordinates': coordinates,
+      };
+
+      // If a new photo is provided, add it to the FormData
+      if (newPhoto != null) {
+        String fileName = newPhoto.path.split('/').last;
+        map['photo'] = await MultipartFile.fromFile(newPhoto.path, filename: fileName);
+      }
+
+      FormData formData = FormData.fromMap(map);
+
       final response = await _dio.put(
         '$protectedUrl/posts/$postId',
-        data: {
-          'title': title,
-          'description': description,
-          'rating': rating,
-        },
+        data: formData,
       );
+
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint("Update Error: $e");
+      debugPrint("Update Post Error: $e");
       return false;
     }
   }

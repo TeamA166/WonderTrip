@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
 import 'package:flutter_application_wondertrip/post_detail_screen.dart';
+import 'package:flutter_application_wondertrip/edit_post_screen.dart';
 
 class MyPostsScreen extends StatefulWidget {
   const MyPostsScreen({super.key});
@@ -58,114 +59,17 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
   }
 
   // ✅ UPDATED: Modern Edit Dialog with Stars
-  Future<void> _handleEdit(Post post) async {
-    final titleController = TextEditingController(text: post.title);
-    final descController = TextEditingController(text: post.description);
-    int currentRating = post.rating; // Local variable for the dialog state
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false, // Force user to use buttons
-      builder: (ctx) => StatefulBuilder(
-        // StatefulBuilder allows us to update the stars INSIDE the dialog
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text("Edit Post", style: TextStyle(fontWeight: FontWeight.bold)),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title Field
-                  TextField(
-                    controller: titleController,
-                    decoration: InputDecoration(
-                      labelText: "Title",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: const Color(0xFFF6F6F6),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  
-                  // Description Field
-                  TextField(
-                    controller: descController,
-                    decoration: InputDecoration(
-                      labelText: "Description",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: const Color(0xFFF6F6F6),
-                    ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // Star Rating Row
-                  const Text("Rating", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      int starValue = index + 1;
-                      return GestureDetector(
-                        onTap: () {
-                          // Update dialog state when star is clicked
-                          setDialogState(() {
-                            currentRating = starValue;
-                          });
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: Icon(
-                            starValue <= currentRating ? Icons.star : Icons.star_border,
-                            color: starValue <= currentRating ? Colors.amber : Colors.grey[400],
-                            size: 32,
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(ctx); // Close dialog
-                  setState(() => _isLoading = true); // Show spinner on screen
-                  
-                  final success = await _authService.updatePost(
-                    post.id, 
-                    titleController.text, 
-                    descController.text, 
-                    currentRating
-                  );
-
-                  if (success) {
-                    await _loadMyPosts(); // Refresh data
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Post updated successfully")));
-                  } else {
-                    setState(() => _isLoading = false);
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to update post")));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0C7489),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text("Save Changes", style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          );
-        },
-      ),
+Future<void> _handleEdit(Post post) async {
+    // Navigate and wait for result
+    final bool? result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => EditPostScreen(post: post)),
     );
+
+    // If result is true, it means update was successful, so refresh list
+    if (result == true) {
+      _loadMyPosts();
+    }
   }
 
   @override

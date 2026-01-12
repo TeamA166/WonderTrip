@@ -95,15 +95,32 @@ func (r *postRepository) DeletePost(ctx context.Context, postID uuid.UUID, userI
 }
 
 func (r *postRepository) UpdatePost(ctx context.Context, p core.Post) error {
-	const query = `UPDATE posts SET title=$1, description=$2, rating=$3 WHERE id=$4 AND user_id=$5`
-	_, err := r.db.ExecContext(ctx, query, p.Title, p.Description, p.Rating, p.ID, p.UserID)
-	return err
+	// ✅ QUERY UPDATED: Updates photo_path, coordinates, and sets verified to FALSE
+	const query = `
+        UPDATE posts 
+        SET title=$1, description=$2, rating=$3, coordinates=$4, photo_path=$5, verified=false 
+        WHERE id=$6 AND user_id=$7`
+
+	res, err := r.db.ExecContext(ctx, query,
+		p.Title, p.Description, p.Rating, p.Coordinates, p.PhotoPath, p.ID, p.UserID,
+	)
+	if err != nil {
+		return err
+	}
+
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("post not found or unauthorized")
+	}
+	return nil
 }
 
 func (r *postRepository) GetPostByID(ctx context.Context, postID uuid.UUID) (core.Post, error) {
-	const query = `SELECT id, user_id, title, description, rating FROM posts WHERE id = $1`
+	const query = `SELECT id, user_id, title, description, rating, coordinates, photo_path, verified FROM posts WHERE id = $1`
 	var p core.Post
-	err := r.db.QueryRowContext(ctx, query, postID).Scan(&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating)
+	err := r.db.QueryRowContext(ctx, query, postID).Scan(
+		&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified,
+	)
 	return p, err
 }
 func (r *postRepository) CreateComment(ctx context.Context, c core.Comment) error {

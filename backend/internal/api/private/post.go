@@ -250,6 +250,7 @@ func (h *PostHandler) DeletePost(c *fiber.Ctx) error {
 
 // PUT /api/v1/protected/posts/:id
 func (h *PostHandler) UpdatePost(c *fiber.Ctx) error {
+	// 1. Auth Check
 	userID, err := parseUserID(c.Locals("userID"))
 	if err != nil {
 		return c.SendStatus(http.StatusUnauthorized)
@@ -257,34 +258,70 @@ func (h *PostHandler) UpdatePost(c *fiber.Ctx) error {
 
 	postID, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Post ID"})
 	}
-
-	// Parse Body (Title, Description, Rating)
-	var req core.PostPublishReq
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid body"})
-	}
-
-	// Convert Rating string to int if necessary, or assume struct handles it
-	// For simplicity, reusing Post structure logic
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
 	defer cancel()
 
-	post := core.Post{
-		ID:          postID,
-		UserID:      userID,
-		Title:       req.Title,
-		Description: req.Description,
-		Rating:      *req.Rating, // Assuming not null in update for now
+	// 2. Fetch Existing Post (To get the OLD photo path in case user didn't change it)
+	oldPost, err := h.repo.GetPostByID(ctx, postID)
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "Post not found"})
 	}
 
-	if err := h.repo.UpdatePost(ctx, post); err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Update failed"})
+	// 3. Security Check: Does user own this post?
+	if oldPost.UserID != userID {
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{"error": "You do not own this post"})
 	}
 
-	return c.Status(http.StatusOK).JSON(fiber.Map{"message": "Updated"})
+	// 4. Parse Form Data (Manual parsing because of File Upload)
+	title := c.FormValue("title")
+	description := c.FormValue("description")
+	coordinates := c.FormValue("coordinates")
+	ratingStr := c.FormValue("rating")
+
+	// Update fields if provided
+	if title != "" {
+		oldPost.Title = title
+	}
+	if description != "" {
+		oldPost.Description = description
+	}
+	if coordinates != "" {
+		oldPost.Coordinates = coordinates
+	}
+
+	if ratingStr != "" {
+		rating, _ := strconv.Atoi(ratingStr)
+		if rating >= 1 && rating <= 5 {
+			oldPost.Rating = rating
+		}
+	}
+
+	// 5. Handle Optional Photo Upload
+	file, err := c.FormFile("photo")
+	if err == nil {
+		// ✅ User sent a new file! Save it.
+		// (Optional: You could delete existing oldPost.PhotoPath here to save disk space)
+
+		newPath, err := savePhoto(c, file) // Reusing your existing savePhoto helper function
+		if err != nil {
+			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save new photo"})
+		}
+		oldPost.PhotoPath = newPath
+	}
+	// If err != nil, it means no new file was sent. We keep oldPost.PhotoPath.
+
+	// 6. Save Updates (Repository forces verified = false)
+	if err := h.repo.UpdatePost(ctx, oldPost); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update post"})
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{
+		"message": "Post updated successfully",
+		"post":    oldPost,
+	})
 }
 
 // POST /api/v1/protected/posts/:id/comments
