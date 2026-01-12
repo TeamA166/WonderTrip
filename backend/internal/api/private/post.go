@@ -376,3 +376,22 @@ func (h *PostHandler) GetComments(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusOK).JSON(comments)
 }
+
+// GET /api/v1/protected/users/photos/:filename
+func (h *ProfileHandler) GetUserProfilePhoto(c *fiber.Ctx) error {
+	filename := c.Params("filename")
+
+	// Security check
+	if filename == "" || containsDotDot(filename) {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid filename"})
+	}
+
+	// ✅ READ FROM "uploads/profile" FOLDER
+	filePath := fmt.Sprintf("uploads/profile/%s", filename)
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "Image not found"})
+	}
+
+	return c.SendFile(filePath)
+}

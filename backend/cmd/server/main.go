@@ -99,6 +99,7 @@ func main() {
 
 		protected.Post("/posts/:id/comments", postHandler.AddComment)
 		protected.Get("/posts/:id/comments", postHandler.GetComments)
+		protected.Get("/users/photos/:filename", profileHandler.GetUserProfilePhoto)
 
 	}
 

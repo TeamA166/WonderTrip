@@ -157,7 +157,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
 
                   // 5. Comments List
-                  _isLoading 
+                    _isLoading 
                     ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
                     : _comments.isEmpty
                         ? const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No comments yet. Be the first!")))
@@ -166,17 +166,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: _comments.length,
                             itemBuilder: (context, index) {
-                              final comment = _comments[index];
-                              return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: const Color(0xFF119DA4),
-                                  child: Text(comment.userName.isNotEmpty ? comment.userName[0].toUpperCase() : "U", style: const TextStyle(color: Colors.white)),
+                                final comment = _comments[index];
+
+                                // 🔍 DEBUG PRINT: This will show up in your "Debug Console"
+                                print("COMMENT DEBUG -> User: ${comment.userName} | PhotoPath: '${comment.userPhotoPath}'");
+
+                                return ListTile(
+                                leading: SecureAvatar(
+                                    photoPath: comment.userPhotoPath, 
+                                    size: 40,
                                 ),
                                 title: Text(comment.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
                                 subtitle: Text(comment.content),
-                              );
+                                );
                             },
-                          ),
+                            ),
                   const SizedBox(height: 20),
                 ],
               ),

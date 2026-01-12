@@ -463,6 +463,24 @@ class AuthService {
       return false;
     }
   }
+  Future<Uint8List?> getCommenterPhotoBytes(String photoPath) async {
+    try {
+      if (photoPath.isEmpty) return null;
+
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      String cleanFileName = photoPath.split('/').last;
+
+      // Call the NEW endpoint we just made in Go
+      final response = await _dio.get(
+        '$protectedUrl/users/photos/$cleanFileName',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      
+      return Uint8List.fromList(response.data);
+    } catch (e) {
+      return null; // Return null on error so we show a default icon
+    }
+  }
 }
 
 // --- DATA MODEL ---
@@ -505,15 +523,23 @@ class Comment {
   final String id;
   final String content;
   final String userName;
+  final String userPhotoPath; // ✅ ADD THIS
   final String createdAt;
 
-  Comment({required this.id, required this.content, required this.userName, required this.createdAt});
+  Comment({
+    required this.id, 
+    required this.content, 
+    required this.userName, 
+    required this.userPhotoPath, // ✅ ADD THIS
+    required this.createdAt
+  });
 
   factory Comment.fromJson(Map<String, dynamic> json) {
     return Comment(
       id: json['id'],
       content: json['content'],
       userName: json['user_name'] ?? "Unknown",
+      userPhotoPath: json['user_photo_path'] ?? "", // ✅ ADD THIS
       createdAt: json['created_at'],
     );
   }

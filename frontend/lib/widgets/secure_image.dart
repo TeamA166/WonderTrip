@@ -97,3 +97,51 @@ class _SecurePostImageState extends State<SecurePostImage> {
     );
   }
 }
+class SecureAvatar extends StatefulWidget {
+  final String photoPath;
+  final double size;
+
+  const SecureAvatar({super.key, required this.photoPath, this.size = 40});
+
+  @override
+  State<SecureAvatar> createState() => _SecureAvatarState();
+}
+
+class _SecureAvatarState extends State<SecureAvatar> {
+  Uint8List? _imageBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatar();
+  }
+
+Future<void> _loadAvatar() async {
+    // 🔍 DEBUG
+    print("AVATAR DEBUG: Loading for path: '${widget.photoPath}'");
+
+    if (widget.photoPath.isEmpty) {
+      print("AVATAR DEBUG: Path is empty, aborting.");
+      return;
+    }
+    
+    // Call the service
+    print("AVATAR DEBUG: Calling AuthService...");
+    final bytes = await AuthService().getCommenterPhotoBytes(widget.photoPath);
+    
+    print("AVATAR DEBUG: Bytes received: ${bytes?.length ?? 0}");
+    if (mounted) setState(() => _imageBytes = bytes);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      radius: widget.size / 2,
+      backgroundColor: const Color(0xFF119DA4),
+      backgroundImage: _imageBytes != null ? MemoryImage(_imageBytes!) : null,
+      child: _imageBytes == null 
+        ? Icon(Icons.person, color: Colors.white, size: widget.size * 0.6) 
+        : null,
+    );
+  }
+}

@@ -130,9 +130,9 @@ func (r *postRepository) CreateComment(ctx context.Context, c core.Comment) erro
 }
 
 func (r *postRepository) GetCommentsByPostID(ctx context.Context, postID uuid.UUID) ([]core.Comment, error) {
-	// Join with users table to get the name of the commenter
+	// ✅ CHANGED: Select u.photo_path
 	const query = `
-        SELECT c.id, c.post_id, c.user_id, c.content, c.created_at, u.name 
+        SELECT c.id, c.post_id, c.user_id, c.content, c.created_at, u.name, u.profile_path
         FROM comments c
         JOIN users u ON c.user_id = u.id
         WHERE c.post_id = $1
@@ -147,7 +147,8 @@ func (r *postRepository) GetCommentsByPostID(ctx context.Context, postID uuid.UU
 	var comments []core.Comment
 	for rows.Next() {
 		var c core.Comment
-		if err := rows.Scan(&c.ID, &c.PostID, &c.UserID, &c.Content, &c.CreatedAt, &c.UserName); err != nil {
+		// ✅ CHANGED: Scan the new column into UserPhotoPath
+		if err := rows.Scan(&c.ID, &c.PostID, &c.UserID, &c.Content, &c.CreatedAt, &c.UserName, &c.UserPhotoPath); err != nil {
 			return nil, err
 		}
 		comments = append(comments, c)
