@@ -42,7 +42,8 @@ dependencies:
   flutter_map: ^6.1.0       # The map widget
   latlong2: ^0.9.0          # Required for handling coordinates
   geolocator: ^10.1.0
-  path_provider: ^2.1.2        # To get user permissions and location
+  path_provider: ^2.1.2
+  image_picker: ^1.0.7     # To get user permissions and location
   
 dev_dependencies:
   flutter_test:

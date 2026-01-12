@@ -9,14 +9,19 @@ import 'package:path_provider/path_provider.dart';
 class AuthService {
   // 1. Define Base URL (Points to /auth group)
   String get baseUrl {
-    if (kIsWeb) {
-      return "https://api.batuhanalun.com/api/v1/auth"; 
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return "https://api.batuhanalun.com/api/v1/auth"; 
-    } else {
-      return "https://api.batuhanalun.com/api/v1/auth"; 
+      // 1. Web: localhost works fine
+      if (kIsWeb) {
+        return "http://localhost:8080/api/v1/auth"; 
+      } 
+      // 2. Android Emulator: Must use special IP 10.0.2.2 to reach host machine
+      else if (defaultTargetPlatform == TargetPlatform.android) {
+        return "http://10.0.2.2:8080/api/v1/auth"; 
+      } 
+      // 3. iOS Simulator: Uses localhost (127.0.0.1)
+      else {
+        return "http://127.0.0.1:8080/api/v1/auth"; 
+      }
     }
-  }
 
   // 2. Create Singletons
   static final Dio _dio = Dio();
@@ -171,15 +176,15 @@ class AuthService {
       // Logic: Strip "/auth" and replace with "/posts"
       // Current baseUrl: .../api/v1/auth
       // Target URL: .../api/v1/posts
-      final publicUrl = baseUrl.replaceAll("/auth", "/posts");
+      final publicUrl = baseUrl.replaceAll("/auth", "/protected");
 
       final response = await _dio.get(
-        publicUrl, 
+        '$publicUrl/posts',
         queryParameters: {'page': page},
       );
 
       if (response.statusCode == 200) {
-        List<dynamic> data = response.data; // Expecting JSON Array
+        List<dynamic> data = response.data;
         return data.map((json) => Post.fromJson(json)).toList();
       }
       return [];
@@ -251,6 +256,93 @@ class AuthService {
       return null;
     } catch (e) {
       return null;
+    }
+  }
+  Future<Uint8List?> getProfileImageBytes() async {
+    try {
+      // Switch from /auth to /protected
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      
+      final response = await _dio.get(
+        '$protectedUrl/profile-photo',
+        options: Options(responseType: ResponseType.bytes), // Important: Get raw bytes
+      );
+
+      if (response.statusCode == 200) {
+        return Uint8List.fromList(response.data);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Error fetching profile photo: $e");
+      return null;
+    }
+  }
+  // Update User Profile
+  Future<bool> updateProfile(String firstName, String lastName, String email) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      
+      final response = await _dio.put(
+        '$protectedUrl/profile',
+        data: {
+          'name': firstName,
+          'surname': lastName,
+          'email': email,
+        },
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Update Profile Error: $e");
+      return false;
+    }
+  }
+  // Upload Profile Photo
+  Future<bool> uploadProfilePhoto(File imageFile) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      
+      String fileName = imageFile.path.split('/').last;
+
+      // Create FormData
+      FormData formData = FormData.fromMap({
+        "photo": await MultipartFile.fromFile(imageFile.path, filename: fileName),
+      });
+
+      final response = await _dio.post(
+        '$protectedUrl/profile-photo',
+        data: formData,
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Photo Upload Error: $e");
+      return false;
+    }
+  }
+  // Change Password
+  Future<String?> changePassword(String oldPassword, String newPassword) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      
+      final response = await _dio.put(
+        '$protectedUrl/password',
+        data: {
+          'old_password': oldPassword,
+          'new_password': newPassword,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return null; // Success (null error)
+      } else {
+        return "Unknown error";
+      }
+    } catch (e) {
+      if (e is DioException) {
+        return e.response?.data['error'] ?? "Connection failed";
+      }
+      return e.toString();
     }
   }
 }

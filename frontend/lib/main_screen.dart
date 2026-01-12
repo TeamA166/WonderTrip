@@ -1,9 +1,12 @@
+import 'dart:typed_data'; // ✅ Required for Uint8List
 import 'package:flutter/material.dart';
 import 'package:flutter_application_wondertrip/map_screen.dart';
 import 'package:flutter_application_wondertrip/place_detail_screen.dart';
-// Import your services and widgets
+import 'package:flutter_application_wondertrip/profile_screen.dart';
+import 'package:flutter_application_wondertrip/my_posts_screen.dart';
+import 'package:flutter_application_wondertrip/login_screen.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
-import 'package:flutter_application_wondertrip/widgets/secure_image.dart'; // Ensure this file exists
+import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -13,11 +16,16 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final AuthService _authService = AuthService();
   
-  // State Variables
   bool _isLoading = true;
-  String _firstName = "Traveler"; // Default name
+  String _firstName = "Traveler"; 
+  String _email = "";
+  
+  // ✅ NEW: Variable to store the profile photo bytes
+  Uint8List? _profilePhotoBytes; 
+
   List<Post> _verifiedPosts = [];
   List<Post> _unverifiedPosts = [];
 
@@ -29,22 +37,30 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _loadAllData() async {
     try {
-      // 1. Fetch Profile to get Name
-      final profile = await _authService.getProfile(); // You might need to add this method back to AuthService if missing
-      
-      // 2. Fetch Verified Posts (Must See)
-      final verified = await _authService.getVerifiedPosts(page: 1);
-      
-      // 3. Fetch Unverified Posts (Travelers' Posts)
-      final unverified = await _authService.getUnverifiedPosts(page: 1);
+      // ✅ UPDATED: Fetch everything in parallel (Text + Image + Posts)
+      final results = await Future.wait([
+        _authService.getProfile(),            // Index 0: Map (Text Data)
+        _authService.getProfileImageBytes(),  // Index 1: Uint8List (Photo)
+        _authService.getVerifiedPosts(page: 1), // Index 2: List<Post>
+        _authService.getUnverifiedPosts(page: 1)// Index 3: List<Post>
+      ]);
 
       if (mounted) {
         setState(() {
-          if (profile != null) {
-            _firstName = profile['first_name'] ?? "Traveler";
+          // 1. Handle Profile Text
+          final profileData = results[0] as Map<String, dynamic>?;
+          if (profileData != null) {
+            _firstName = profileData['name'] ?? "Traveler"; // Corrected key to 'name'
+            _email = profileData['email'] ?? "";
           }
-          _verifiedPosts = verified;
-          _unverifiedPosts = unverified;
+
+          // 2. ✅ Handle Profile Photo
+          _profilePhotoBytes = results[1] as Uint8List?;
+
+          // 3. Handle Posts
+          _verifiedPosts = results[2] as List<Post>;
+          _unverifiedPosts = results[3] as List<Post>;
+          
           _isLoading = false;
         });
       }
@@ -54,10 +70,78 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _handleLogout() async {
+    await _authService.logout();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ✅ HELPER: Create the image provider
+    // If we have bytes, use MemoryImage. If not, return null (so we can show an Icon).
+    final ImageProvider? profileImageProvider = _profilePhotoBytes != null 
+        ? MemoryImage(_profilePhotoBytes!) 
+        : null;
+
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFFF6F6F6),
+      
+      // --- RIGHT SIDE MENU (DRAWER) ---
+      endDrawer: Drawer(
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(30), bottomLeft: Radius.circular(30)),
+        ),
+        child: Column(
+          children: [
+            UserAccountsDrawerHeader(
+              decoration: const BoxDecoration(color: Color(0xFF119DA4)),
+              accountName: Text(_firstName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              accountEmail: Text(_email),
+              // ✅ UPDATED: Show Photo or Initials
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: Colors.white,
+                backgroundImage: profileImageProvider, // Use the fetched image
+                child: _profilePhotoBytes == null 
+                    ? Text(_firstName.isNotEmpty ? _firstName[0].toUpperCase() : "T", 
+                        style: const TextStyle(fontSize: 24, color: Color(0xFF119DA4)))
+                    : null, // Hide child if image exists
+              ),
+            ),
+            
+            ListTile(
+              leading: const Icon(Icons.person_outline, color: Colors.black87),
+              title: const Text("Profile"),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.grid_view, color: Colors.black87),
+              title: const Text("My Page"),
+              onTap: () {
+                Navigator.pop(context); 
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const MyPostsScreen()));
+              },
+            ),
+            const Spacer(),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.redAccent),
+              title: const Text("Log Out", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              onTap: _handleLogout,
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator()) 
         : SafeArea(
@@ -65,7 +149,7 @@ class _MainScreenState extends State<MainScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Header Section
+                // --- HEADER SECTION ---
                 Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
@@ -82,12 +166,18 @@ class _MainScreenState extends State<MainScreen> {
                               ],
                             ),
                           ),
-                          // Profile Icon (Optional: Connect to ProfileScreen)
+                          
+                          // ✅ UPDATED: Top Right Profile Click Action
                           GestureDetector(
-                            // onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen())),
+                            onTap: () {
+                              _scaffoldKey.currentState?.openEndDrawer();
+                            },
                             child: CircleAvatar(
                               backgroundColor: Colors.grey[300],
-                              child: const Icon(Icons.person, color: Colors.white),
+                              backgroundImage: profileImageProvider, // Use the fetched image
+                              child: _profilePhotoBytes == null
+                                  ? const Icon(Icons.person, color: Colors.white) // Show icon if no image
+                                  : null, // Hide icon if image exists
                             ),
                           ),
                         ],
@@ -97,23 +187,20 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
 
-                // 2. Discover Nearby Places Button
+                // ... (Rest of your UI: Discover Button, Must See Spots, etc.) ...
+                // Paste the rest of your build body here (Discover Button, Lists, etc.)
+                // It remains exactly the same as before.
+                
+                // Discover Nearby Places
                 GestureDetector(
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MapScreen()));
-                  },
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MapScreen())),
                   child: Container(
                     margin: const EdgeInsets.symmetric(horizontal: 20),
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05), // Fixed for compatibility
-                          blurRadius: 10
-                        )
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
                     ),
                     child: Row(
                       children: [
@@ -140,7 +227,7 @@ class _MainScreenState extends State<MainScreen> {
 
                 const SizedBox(height: 30),
 
-                // 3. Must See Spots (VERIFIED POSTS)
+                // Must See Spots
                 _buildSectionTitle("Must See Spots!", "Your Lodz adventure awaits"),
                 SizedBox(
                   height: 250,
@@ -150,15 +237,13 @@ class _MainScreenState extends State<MainScreen> {
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         itemCount: _verifiedPosts.length,
-                        itemBuilder: (context, index) {
-                          return _buildPlaceCard(context, _verifiedPosts[index]);
-                        },
+                        itemBuilder: (context, index) => _buildPlaceCard(context, _verifiedPosts[index]),
                       ),
                 ),
 
                 const SizedBox(height: 30),
 
-                // 4. Travelers' posts (UNVERIFIED POSTS)
+                // Travelers' posts
                 _buildSectionTitle("Travelers' posts!", "A favorite among travelers"),
                 SizedBox(
                   height: 200,
@@ -168,9 +253,7 @@ class _MainScreenState extends State<MainScreen> {
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         itemCount: _unverifiedPosts.length,
-                        itemBuilder: (context, index) {
-                          return _buildPostCard(_unverifiedPosts[index]);
-                        },
+                        itemBuilder: (context, index) => _buildPostCard(_unverifiedPosts[index]),
                       ),
                 ),
                 const SizedBox(height: 40),
@@ -194,55 +277,30 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // --- WIDGET FOR VERIFIED POSTS ---
   Widget _buildPlaceCard(BuildContext context, Post post) {
     return GestureDetector(
-      onTap: () {
-        // Pass the post data to detail screen if needed
-        Navigator.push(context, MaterialPageRoute(builder: (context) => const PlaceDetailScreen()));
-      },
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PlaceDetailScreen())),
       child: Container(
         width: 280,
         margin: const EdgeInsets.all(10),
-        // Use Stack to layer Image, Gradient, and Text
         child: ClipRRect(
           borderRadius: BorderRadius.circular(15),
           child: Stack(
             children: [
-              // 1. The Secure Image
-              Positioned.fill(
-                child: SecurePostImage(
-                  photoPath: post.photoPath, 
-                  fit: BoxFit.cover,
-                ),
-              ),
-              
-              // 2. Gradient Overlay (To make text readable)
+              Positioned.fill(child: SecurePostImage(photoPath: post.photoPath, fit: BoxFit.cover)),
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.bottomCenter, 
-                      end: Alignment.topCenter, 
-                      colors: [
-                        Colors.black.withOpacity(0.7), 
-                        Colors.transparent
-                      ]
+                      begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                      colors: [Colors.black.withOpacity(0.7), Colors.transparent],
                     ),
                   ),
                 ),
               ),
-
-              // 3. Text Title
               Positioned(
-                bottom: 15,
-                left: 15,
-                right: 15,
-                child: Text(
-                  post.title, 
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                bottom: 15, left: 15, right: 15,
+                child: Text(post.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
               ),
             ],
           ),
@@ -251,7 +309,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // --- WIDGET FOR UNVERIFIED POSTS ---
   Widget _buildPostCard(Post post) {
     return Container(
       width: 150,
@@ -260,32 +317,18 @@ class _MainScreenState extends State<MainScreen> {
         borderRadius: BorderRadius.circular(15),
         child: Stack(
           children: [
-            // Just the image for traveler posts (similar to Instagram grid)
-            Positioned.fill(
-              child: SecurePostImage(
-                photoPath: post.photoPath,
-                fit: BoxFit.cover,
-              ),
-            ),
-            // Optional: Add rating badge
+            Positioned.fill(child: SecurePostImage(photoPath: post.photoPath, fit: BoxFit.cover)),
             Positioned(
-              top: 8,
-              right: 8,
+              top: 8, right: 8,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(10)),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.star, color: Colors.amber, size: 12),
                     const SizedBox(width: 4),
-                    Text(
-                      post.rating.toString(),
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
+                    Text(post.rating.toString(), style: const TextStyle(color: Colors.white, fontSize: 12)),
                   ],
                 ),
               ),

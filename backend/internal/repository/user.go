@@ -15,6 +15,10 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, user core.User) (core.User, error)
 	GetByEmail(ctx context.Context, email string) (core.User, error)
 	GetById(ctx context.Context, uuid uuid.UUID) (core.User, error)
+	UpdateUser(ctx context.Context, user core.User) error
+	UpdateProfilePhoto(ctx context.Context, userID uuid.UUID, path string) error
+	UpdatePassword(ctx context.Context, userID uuid.UUID, newHash string) error
+	GetByIdForPassword(ctx context.Context, uuid uuid.UUID) (core.User, error)
 }
 
 type userRepository struct {
@@ -64,6 +68,37 @@ func (r *userRepository) GetById(ctx context.Context, uuid uuid.UUID) (core.User
 	FROM users
 	WHERE id = $1
 	LIMIT 1`
+
+	var user core.User
+	if err := r.db.GetContext(ctx, &user, query, uuid); err != nil {
+		return core.User{}, fmt.Errorf("repository: get user by id: %w", err)
+	}
+	return user, nil
+}
+func (r *userRepository) UpdateUser(ctx context.Context, user core.User) error {
+	const query = `
+        UPDATE users 
+        SET name = $1, surname = $2, email = $3, updated_at = NOW()
+        WHERE id = $4`
+
+	_, err := r.db.ExecContext(ctx, query, user.Name, user.Surname, user.Email, user.ID)
+	if err != nil {
+		return fmt.Errorf("repository: update user: %w", err)
+	}
+	return nil
+}
+func (r *userRepository) UpdateProfilePhoto(ctx context.Context, userID uuid.UUID, path string) error {
+	const query = `UPDATE users SET profile_path = $1 WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, path, userID)
+	return err
+}
+func (r *userRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, newHash string) error {
+	const query = `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, newHash, userID)
+	return err
+}
+func (r *userRepository) GetByIdForPassword(ctx context.Context, uuid uuid.UUID) (core.User, error) {
+	const query = `SELECT id, name, surname, email, password_hash FROM users WHERE id = $1`
 
 	var user core.User
 	if err := r.db.GetContext(ctx, &user, query, uuid); err != nil {
