@@ -345,6 +345,78 @@ class AuthService {
       return e.toString();
     }
   }
+  // Get logged-in user's posts
+  Future<List<Post>> getMyPosts() async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.get('$protectedUrl/posts/me');
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = response.data;
+        return data.map((json) => Post.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Get My Posts Error: $e");
+      return [];
+    }
+  }
+
+  // Delete a post
+  Future<bool> deletePost(String postId) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.delete('$protectedUrl/posts/$postId');
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Delete Error: $e");
+      return false;
+    }
+  }
+
+  // Update a post (Simple text update)
+  Future<bool> updatePost(String postId, String title, String description, int rating) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.put(
+        '$protectedUrl/posts/$postId',
+        data: {
+          'title': title,
+          'description': description,
+          'rating': rating,
+        },
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Update Error: $e");
+      return false;
+    }
+  }
+  Future<bool> publishPost(String title, String description, int rating, String coordinates, File photo) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      
+      String fileName = photo.path.split('/').last;
+
+      FormData formData = FormData.fromMap({
+        'title': title,
+        'description': description,
+        'rating': rating,
+        'coordinates': coordinates,
+        'photo': await MultipartFile.fromFile(photo.path, filename: fileName),
+      });
+
+      final response = await _dio.post(
+        '$protectedUrl/posts', // Assuming route is POST /api/v1/protected/posts
+        data: formData,
+      );
+
+      return response.statusCode == 201; // Created
+    } catch (e) {
+      debugPrint("Publish Post Error: $e");
+      return false;
+    }
+  }
 }
 
 // --- DATA MODEL ---

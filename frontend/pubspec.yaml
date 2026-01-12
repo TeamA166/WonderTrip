@@ -43,7 +43,7 @@ dependencies:
   latlong2: ^0.9.0          # Required for handling coordinates
   geolocator: ^10.1.0
   path_provider: ^2.1.2
-  image_picker: ^1.0.7     # To get user permissions and location
+  image_picker: ^1.0.7    # Helper for Latitude/Longitude handling   # To get user permissions and location
   
 dev_dependencies:
   flutter_test:
