@@ -529,3 +529,22 @@ func (h *PostHandler) GetFeed(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusOK).JSON(posts)
 }
+
+// POST /api/v1/protected/posts/:id/like
+func (h *PostHandler) ToggleLike(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	postID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Post ID"})
+	}
+
+	if err := h.repo.ToggleLike(c.UserContext(), userID, postID); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to toggle like"})
+	}
+
+	return c.SendStatus(http.StatusOK)
+}

@@ -13,20 +13,19 @@ class FeedScreen extends StatefulWidget {
 
 class _FeedScreenState extends State<FeedScreen> {
   final AuthService _authService = AuthService();
-  final ScrollController _scrollController = ScrollController(); // ✅ 1. Scroll Controller
+  final ScrollController _scrollController = ScrollController();
 
   List<Post> _posts = [];
-  bool _isLoading = true;      // Initial full-screen load
-  bool _isLoadingMore = false; // Loading next page
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
   int _currentPage = 1;
-  bool _hasMore = true;        // Stop trying if server returns empty list
+  bool _hasMore = true;
 
   @override
   void initState() {
     super.initState();
     _loadFeed();
     
-    // ✅ 2. Listen to scrolling
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 && !_isLoadingMore && _hasMore) {
         _loadMorePosts();
@@ -40,7 +39,6 @@ class _FeedScreenState extends State<FeedScreen> {
     super.dispose();
   }
 
-  // Initial Load (Pull to refresh calls this too)
   Future<void> _loadFeed() async {
     setState(() {
       _isLoading = true;
@@ -54,13 +52,11 @@ class _FeedScreenState extends State<FeedScreen> {
       setState(() {
         _posts = posts;
         _isLoading = false;
-        // If we got fewer than 10 posts, that means there are no more pages
         if (posts.length < 10) _hasMore = false; 
       });
     }
   }
 
-  // Load Next Page
   Future<void> _loadMorePosts() async {
     setState(() => _isLoadingMore = true);
 
@@ -70,9 +66,9 @@ class _FeedScreenState extends State<FeedScreen> {
     if (mounted) {
       setState(() {
         if (newPosts.isEmpty) {
-          _hasMore = false; // Stop calling server
+          _hasMore = false;
         } else {
-          _posts.addAll(newPosts); // Append new data
+          _posts.addAll(newPosts);
           _currentPage = nextPage;
           if (newPosts.length < 10) _hasMore = false;
         }
@@ -99,96 +95,207 @@ class _FeedScreenState extends State<FeedScreen> {
               child: _posts.isEmpty
                   ? const Center(child: Text("No posts yet. Be the first!"))
                   : ListView.builder(
-                      controller: _scrollController, // ✅ Attach Controller
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      // Add +1 to item count for the bottom loading spinner
+                      controller: _scrollController,
+                      padding: const EdgeInsets.only(top: 10, bottom: 20),
                       itemCount: _posts.length + (_hasMore ? 1 : 0),
                       itemBuilder: (context, index) {
-                        // If we are at the very bottom, show spinner
                         if (index == _posts.length) {
                           return const Padding(
                             padding: EdgeInsets.all(20.0),
                             child: Center(child: CircularProgressIndicator()),
                           );
                         }
-                        return _buildFeedCard(_posts[index]);
+                        return FeedPostCard(post: _posts[index]);
                       },
                     ),
             ),
     );
   }
+}
 
-  Widget _buildFeedCard(Post post) {
-    // (This part stays exactly the same as before)
+class FeedPostCard extends StatefulWidget {
+  final Post post;
+  const FeedPostCard({super.key, required this.post});
+
+  @override
+  State<FeedPostCard> createState() => _FeedPostCardState();
+}
+
+class _FeedPostCardState extends State<FeedPostCard> {
+  late bool _isLiked;
+  late int _likeCount;
+  late bool _isBookmarked; 
+
+  @override
+  void initState() {
+    super.initState();
+    _isLiked = widget.post.isLiked;
+    _likeCount = widget.post.likeCount;
+    _isBookmarked = widget.post.isFavorited;
+  }
+
+  Future<void> _handleLike() async {
+    setState(() {
+      _isLiked = !_isLiked;
+      if (_isLiked) {
+        _likeCount++;
+      } else {
+        _likeCount--;
+      }
+    });
+    await AuthService().toggleLike(widget.post.id);
+  }
+
+  Future<void> _handleBookmark() async {
+    setState(() {
+      _isBookmarked = !_isBookmarked;
+    });
+    await AuthService().toggleFavorite(widget.post.id);
+  }
+
+  void _goToDetails() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => PostDetailScreen(post: widget.post)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      elevation: 3,
+      shadowColor: Colors.black26,
+      clipBehavior: Clip.antiAlias, // Ensures image corners are rounded
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => UserProfileScreen(
-                      userId: post.userId,
-                      userName: post.userName,
-                      userPhotoPath: post.userPhotoPath,
+          // ✅ 1. MODERN IMAGE STACK (Image + Overlay Buttons)
+          Stack(
+            children: [
+              // Image (Tap to open details)
+              GestureDetector(
+                onTap: _goToDetails, 
+                child: SizedBox(
+                  height: 320,
+                  width: double.infinity,
+                  child: SecurePostImage(photoPath: widget.post.photoPath, fit: BoxFit.cover),
+                ),
+              ),
+
+              // Overlay: Bookmark (Top Right)
+              Positioned(
+                top: 15,
+                right: 15,
+                child: GestureDetector(
+                  onTap: _handleBookmark,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                      color: Colors.white,
+                      size: 24,
                     ),
                   ),
-                );
-              },
-              child: Row(
-                children: [
-                  SecureAvatar(photoPath: post.userPhotoPath, size: 40),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+
+              // Overlay: Like & Count (Bottom Left)
+              Positioned(
+                bottom: 15,
+                left: 15,
+                child: GestureDetector(
+                  onTap: _handleLike,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
                       children: [
-                        Text(post.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                        if (post.verified)
-                          const Text("Verified Traveler", style: TextStyle(color: Color(0xFF0C7489), fontSize: 11, fontWeight: FontWeight.bold)),
+                        Icon(
+                          _isLiked ? Icons.favorite : Icons.favorite_border,
+                          color: _isLiked ? Colors.redAccent : Colors.white,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "$_likeCount",
+                          style: const TextStyle(
+                            color: Colors.white, 
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-          GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PostDetailScreen(post: post))),
-            child: SizedBox(
-              height: 250,
-              width: double.infinity,
-              child: SecurePostImage(photoPath: post.photoPath, fit: BoxFit.cover),
-            ),
-          ),
+
+          // ✅ 2. FOOTER (User Info & Details)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                const Icon(Icons.favorite_border, size: 26),
-                const SizedBox(width: 16),
-                const Icon(Icons.chat_bubble_outline, size: 26),
-                const Spacer(),
-                const Icon(Icons.star, color: Colors.amber, size: 20),
-                Text(" ${post.rating}/5", style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(post.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                // User Row
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => UserProfileScreen(
+                          userId: widget.post.userId,
+                          userName: widget.post.userName,
+                          userPhotoPath: widget.post.userPhotoPath,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      SecureAvatar(photoPath: widget.post.userPhotoPath, size: 36),
+                      const SizedBox(width: 10),
+                        Expanded(
+                        child: Text(
+                          widget.post.userName, 
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                      // Rating & Comment Icon
+                      const Icon(Icons.star, color: Colors.amber, size: 18),
+                      Text(" ${widget.post.rating}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 15),
+                      InkWell(
+                        onTap: _goToDetails,
+                        child: const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 22),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // Title
+                Text(widget.post.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text(post.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.black87)),
+                
+                // Description (Truncated)
+                Text(
+                  widget.post.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.black87),
+                ),
               ],
             ),
           ),

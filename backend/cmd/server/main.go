@@ -108,6 +108,7 @@ func main() {
 		protected.Get("/favorites", postHandler.GetUserFavorites)
 
 		protected.Get("/users/:id/posts", postHandler.GetUserPosts)
+		protected.Post("/posts/:id/like", postHandler.ToggleLike)
 
 	}
 

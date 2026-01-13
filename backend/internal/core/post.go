@@ -19,6 +19,9 @@ type Post struct {
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 	UserName      string    `json:"user_name"`
 	UserPhotoPath string    `json:"user_photo_path"`
+	LikeCount     int       `json:"like_count"`
+	IsLiked       bool      `json:"is_liked"`
+	IsFavorited   bool      `json:"is_favorited"`
 }
 
 type PostPublishReq struct {

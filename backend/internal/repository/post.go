@@ -25,6 +25,7 @@ type PostRepository interface {
 	GetFavorites(ctx context.Context, userID uuid.UUID) ([]core.Post, error)
 	GetPosts(ctx context.Context, limit int, offset int) ([]core.Post, error)
 	GetFeedPosts(ctx context.Context, limit int, offset int, excludeUserID uuid.UUID) ([]core.Post, error)
+	ToggleLike(ctx context.Context, userID, postID uuid.UUID) error
 }
 
 type postRepository struct {
@@ -230,8 +231,17 @@ func (r *postRepository) GetPosts(ctx context.Context, limit int, offset int) ([
 	return r.scanPosts(rows)
 }
 func (r *postRepository) GetFeedPosts(ctx context.Context, limit int, offset int, excludeUserID uuid.UUID) ([]core.Post, error) {
-	// Logic: Same as GetPosts, but adds 'WHERE user_id != $1'
-	query := postSelectQuery + `
+	const query = `
+        SELECT p.id, p.user_id, p.title, p.description, p.rating, p.coordinates, p.photo_path, p.verified, p.created_at,
+               u.name, COALESCE(u.profile_path, ''),
+               -- 1. Check if "Bookmarked" (Favorites table)
+               EXISTS(SELECT 1 FROM favorites f WHERE f.post_id = p.id AND f.user_id = $1) AS is_favorited,
+               -- 2. Check if "Liked" (Likes table)
+               EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id = p.id AND l.user_id = $1) AS is_liked,
+               -- 3. Count Total Likes
+               (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS like_count
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
         WHERE p.user_id != $1 
         ORDER BY p.created_at DESC
         LIMIT $2 OFFSET $3`
@@ -242,5 +252,36 @@ func (r *postRepository) GetFeedPosts(ctx context.Context, limit int, offset int
 	}
 	defer rows.Close()
 
-	return r.scanPosts(rows)
+	var posts []core.Post
+	for rows.Next() {
+		var p core.Post
+		if err := rows.Scan(
+			&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified, &p.CreatedAt,
+			&p.UserName, &p.UserPhotoPath,
+			&p.IsFavorited, // Bookmark status
+			&p.IsLiked,     // Like status
+			&p.LikeCount,   // Total likes
+		); err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+
+	return posts, nil
+}
+func (r *postRepository) ToggleLike(ctx context.Context, userID, postID uuid.UUID) error {
+	// Check if liked
+	var exists bool
+	checkQuery := "SELECT EXISTS(SELECT 1 FROM post_likes WHERE user_id = $1 AND post_id = $2)"
+	if err := r.db.QueryRowContext(ctx, checkQuery, userID, postID).Scan(&exists); err != nil {
+		return err
+	}
+
+	if exists {
+		_, err := r.db.ExecContext(ctx, "DELETE FROM post_likes WHERE user_id = $1 AND post_id = $2", userID, postID)
+		return err
+	} else {
+		_, err := r.db.ExecContext(ctx, "INSERT INTO post_likes (user_id, post_id) VALUES ($1, $2)", userID, postID)
+		return err
+	}
 }

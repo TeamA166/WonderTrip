@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
-import 'package:flutter_application_wondertrip/user_profile_screen.dart'; // ✅ Import User Profile Screen
+import 'package:flutter_application_wondertrip/user_profile_screen.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final Post post;
@@ -20,28 +20,37 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   List<Comment> _comments = [];
   bool _isLoading = true;
   bool _isSending = false;
-  bool _isFavorited = false;
+
+  late bool _isLiked;
+  late int _likeCount;
+  late bool _isBookmarked;
 
   @override
   void initState() {
     super.initState();
+    _isLiked = widget.post.isLiked;
+    _likeCount = widget.post.likeCount;
+    _isBookmarked = widget.post.isFavorited;
     _loadComments();
-    _checkFavoriteStatus();
   }
 
-  Future<void> _checkFavoriteStatus() async {
-    bool fav = await _authService.isPostFavorited(widget.post.id);
-    if (mounted) setState(() => _isFavorited = fav);
+  Future<void> _handleLike() async {
+    setState(() {
+      _isLiked = !_isLiked;
+      if (_isLiked) {
+        _likeCount++;
+      } else {
+        _likeCount--;
+      }
+    });
+    await _authService.toggleLike(widget.post.id);
   }
 
-  Future<void> _toggleFavorite() async {
-    setState(() => _isFavorited = !_isFavorited);
-
-    bool serverState = await _authService.toggleFavorite(widget.post.id);
-    
-    if (mounted && serverState != _isFavorited) {
-      setState(() => _isFavorited = serverState);
-    }
+  Future<void> _handleBookmark() async {
+    setState(() {
+      _isBookmarked = !_isBookmarked;
+    });
+    await _authService.toggleFavorite(widget.post.id);
   }
 
   Future<void> _loadComments() async {
@@ -79,24 +88,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No location data available.")));
       return;
     }
-    
     final cleanCoords = coords.replaceAll(" ", "");
-    // Using universal Google Maps link
     final Uri googleMapsUrl = Uri.parse("http://maps.google.com/maps?q=$cleanCoords");
-
     try {
       if (!await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication)) {
         throw 'Could not launch maps';
       }
     } catch (e) {
       debugPrint("Maps Error: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not open Google Maps.")));
-      }
     }
   }
 
-  // ✅ NEW: Navigate to Full Screen Zoom
   void _openFullScreenImage() {
     Navigator.push(
       context,
@@ -115,17 +117,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isFavorited ? Icons.favorite : Icons.favorite_border,
-              color: _isFavorited ? Colors.red : Colors.black,
-              size: 28,
-            ),
-            onPressed: _toggleFavorite,
-          ),
-          const SizedBox(width: 10), 
-        ],
       ),
       body: Column(
         children: [
@@ -134,20 +125,108 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. Post Image (Tap to Zoom)
-                  GestureDetector(
-                    onTap: _openFullScreenImage,
-                    child: Hero(
-                      tag: widget.post.photoPath, // Smooth animation tag
-                      child: SizedBox(
-                        height: 250,
-                        width: double.infinity,
-                        child: SecurePostImage(photoPath: widget.post.photoPath, fit: BoxFit.cover),
+                  
+                  // ✅ IMAGE STACK
+                  Stack(
+                    children: [
+                      // 1. The Image
+                      GestureDetector(
+                        onTap: _openFullScreenImage,
+                        child: Hero(
+                          tag: widget.post.photoPath,
+                          child: SizedBox(
+                            height: 350,
+                            width: double.infinity,
+                            child: SecurePostImage(photoPath: widget.post.photoPath, fit: BoxFit.cover),
+                          ),
+                        ),
                       ),
-                    ),
+
+                      // 2. Bookmark Icon (Top Right)
+                      Positioned(
+                        top: 15,
+                        right: 15,
+                        child: GestureDetector(
+                          onTap: _handleBookmark,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // 3. Like Icon & Count (Bottom Left)
+                      Positioned(
+                        bottom: 15,
+                        left: 15,
+                        child: GestureDetector(
+                          onTap: _handleLike,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _isLiked ? Icons.favorite : Icons.favorite_border,
+                                  color: _isLiked ? Colors.redAccent : Colors.white,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "$_likeCount",
+                                  style: const TextStyle(
+                                    color: Colors.white, 
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // ✅ 4. Rating (Bottom Right)
+                      Positioned(
+                        bottom: 15,
+                        right: 15,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.star, color: Colors.amber, size: 20),
+                              const SizedBox(width: 4),
+                              Text(
+                                "${widget.post.rating}/5",
+                                style: const TextStyle(
+                                  color: Colors.white, 
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
 
-                  // ✅ 2. Author Profile Row (Added Back)
+                  // 5. Author Profile Row
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -162,17 +241,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       );
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                       color: Colors.white,
                       child: Row(
                         children: [
-                          SecureAvatar(photoPath: widget.post.userPhotoPath, size: 40),
+                          SecureAvatar(photoPath: widget.post.userPhotoPath, size: 45),
                           const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text("Posted by", style: TextStyle(fontSize: 12, color: Colors.grey)),
                               Text(widget.post.userName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              const Text("Author", style: TextStyle(fontSize: 12, color: Colors.grey)),
                             ],
                           ),
                           const Spacer(),
@@ -181,27 +260,32 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                     ),
                   ),
+                  
                   const Divider(height: 1),
 
-                  // 3. Post Details
+                  // 6. Post Details
                   Padding(
                     padding: const EdgeInsets.all(20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.star, color: Colors.amber, size: 20),
-                            const SizedBox(width: 5),
-                            Text("${widget.post.rating}/5", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            const Spacer(),
-                            if (widget.post.verified)
-                              const Chip(label: Text("Verified", style: TextStyle(color: Colors.white)), backgroundColor: Color(0xFF119DA4))
-                          ],
-                        ),
+                        // Rating removed from here (moved to image)
                         
-                        const SizedBox(height: 10),
-                        Text(widget.post.description, style: const TextStyle(fontSize: 16, color: Colors.black87)),
+                        // Verification Badge (If applicable)
+                        if (widget.post.verified)
+                          Row(
+                            children: const [
+                              Chip(
+                                label: Text("Verified Traveler", style: TextStyle(color: Colors.white)),
+                                backgroundColor: Color(0xFF119DA4),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          ),
+
+                        if (widget.post.verified) const SizedBox(height: 10),
+
+                        Text(widget.post.description, style: const TextStyle(fontSize: 16, color: Colors.black87, height: 1.4)),
 
                         const SizedBox(height: 20),
 
@@ -225,13 +309,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   
                   const Divider(thickness: 1),
                   
-                  // 4. Comments Header
+                  // 7. Comments Header
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     child: Text("Comments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
 
-                  // 5. Comments List
+                  // 8. Comments List
                   _isLoading 
                     ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
                     : _comments.isEmpty
@@ -258,7 +342,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
 
-          // 6. Add Comment Input
+          // 9. Add Comment Input
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
@@ -300,7 +384,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 }
 
-// ✅ NEW: Full Screen Zoom Class
 class FullScreenImageView extends StatelessWidget {
   final String photoPath;
 

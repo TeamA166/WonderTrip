@@ -575,6 +575,15 @@ class AuthService {
       return [];
     }
   }
+  Future<bool> toggleLike(String postId) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.post('$protectedUrl/posts/$postId/like');
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
 }
 
 // --- DATA MODEL ---
@@ -590,11 +599,17 @@ class Post {
   final bool verified;
   final String userName;      // ✅ NEW
   final String userPhotoPath; // ✅ NEW
+  final bool isFavorited; // This is now "Bookmark"
+  final bool isLiked;     // ✅ NEW: Heart
+  final int likeCount;    // ✅ NEW
 
   Post({
     required this.id, required this.userId, required this.title, required this.description,
     required this.rating, required this.coordinates, required this.photoPath, required this.verified,
     required this.userName, required this.userPhotoPath,
+    required this.isFavorited,
+    required this.isLiked,
+    required this.likeCount,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
@@ -609,6 +624,9 @@ class Post {
       verified: json['verified'] ?? false,
       userName: json['user_name'] ?? "Unknown",        // ✅ NEW
       userPhotoPath: json['user_photo_path'] ?? "",     // ✅ NEW
+      isFavorited: json['is_favorited'] ?? false,
+      isLiked: json['is_liked'] ?? false,        // ✅ NEW
+      likeCount: json['like_count'] ?? 0,        // ✅ NEW
     );
   }
 }
