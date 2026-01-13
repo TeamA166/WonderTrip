@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart'; // OpenStreetMap package
-import 'package:latlong2/latlong.dart';      // Coordinates package
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_application_wondertrip/services/auth_service.dart'; // ✅ Import Auth Service
-import 'package:flutter_application_wondertrip/post_detail_screen.dart'; // ✅ To open details
-import 'package:flutter_application_wondertrip/widgets/secure_image.dart'; // ✅ For list thumbnails
+import 'package:flutter_application_wondertrip/services/auth_service.dart';
+import 'package:flutter_application_wondertrip/post_detail_screen.dart';
+import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -17,8 +17,13 @@ class _MapScreenState extends State<MapScreen> {
   final AuthService _authService = AuthService();
   final MapController _mapController = MapController();
   
+  // Data Lists
+  List<Post> _verifiedPosts = [];
+  List<Post> _favoritePosts = [];
+  
+  // State
+  String _activeTab = "discover"; // 'discover' or 'favorites'
   List<Marker> _markers = [];
-  List<Post> _verifiedPosts = []; // ✅ Store verified posts here
   LatLng? _userLocation;
   bool _isLoading = true;
 
@@ -26,21 +31,38 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _checkLocationPermission();
-    _fetchVerifiedPosts();
+    _loadData();
   }
 
-  // 1. FETCH & FILTER VERIFIED POSTS
-  Future<void> _fetchVerifiedPosts() async {
-    // Fetch all posts (Assuming getPosts returns the feed)
-    // You might want a dedicated getVerifiedPosts() backend endpoint later for performance
+  // Load BOTH lists initially so switching is fast
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    // 1. Fetch Verified
     final allPosts = await _authService.getPosts();
-    
-    // ✅ Filter: Only Verified posts that have coordinates
     final verified = allPosts.where((p) => p.verified && p.coordinates.isNotEmpty).toList();
 
+    // 2. Fetch Favorites
+    final favorites = await _authService.getFavoritePosts();
+    // Filter favorites to ensure they have coordinates (just in case)
+    final validFavorites = favorites.where((p) => p.coordinates.isNotEmpty).toList();
+
+    if (mounted) {
+      setState(() {
+        _verifiedPosts = verified;
+        _favoritePosts = validFavorites;
+        _isLoading = false;
+        _updateMarkers(); // Generate markers for the default tab
+      });
+    }
+  }
+
+  // Generate markers based on the Active Tab
+  void _updateMarkers() {
+    List<Post> targetList = _activeTab == "discover" ? _verifiedPosts : _favoritePosts;
     List<Marker> newMarkers = [];
 
-    for (var post in verified) {
+    for (var post in targetList) {
       LatLng? position = _parseCoordinates(post.coordinates);
       if (position != null) {
         newMarkers.add(
@@ -49,20 +71,28 @@ class _MapScreenState extends State<MapScreen> {
             width: 60,
             height: 60,
             child: GestureDetector(
-              onTap: () => _navigateToPost(post), // Tap marker to open details
+              onTap: () => _navigateToPost(post),
               child: Column(
                 children: [
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0C7489),
+                      color: _activeTab == "discover" ? const Color(0xFF0C7489) : Colors.red, // Blue for verified, Red for favs
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                       boxShadow: const [BoxShadow(blurRadius: 5, color: Colors.black26)],
                     ),
                     padding: const EdgeInsets.all(6),
-                    child: const Icon(Icons.verified, color: Colors.white, size: 20),
+                    child: Icon(
+                      _activeTab == "discover" ? Icons.verified : Icons.favorite, // Different Icons
+                      color: Colors.white, 
+                      size: 20
+                    ),
                   ),
-                  const Icon(Icons.arrow_drop_down, color: Color(0xFF0C7489), size: 20),
+                  Icon(
+                    Icons.arrow_drop_down, 
+                    color: _activeTab == "discover" ? const Color(0xFF0C7489) : Colors.red, 
+                    size: 20
+                  ),
                 ],
               ),
             ),
@@ -70,17 +100,34 @@ class _MapScreenState extends State<MapScreen> {
         );
       }
     }
+    
+    // Add User Location Marker if available
+    if (_userLocation != null) {
+      newMarkers.add(
+        Marker(
+          point: _userLocation!,
+          width: 50,
+          height: 50,
+          child: const Icon(Icons.my_location, color: Colors.blue, size: 30),
+        ),
+      );
+    }
 
-    if (mounted) {
+    setState(() {
+      _markers = newMarkers;
+    });
+  }
+
+  // Switch Tab Logic
+  void _switchTab(String tabName) {
+    if (_activeTab != tabName) {
       setState(() {
-        _verifiedPosts = verified;
-        _markers = newMarkers;
-        _isLoading = false;
+        _activeTab = tabName;
+        _updateMarkers(); // Refresh markers immediately
       });
     }
   }
 
-  // Helper: Parse "51.2, 19.3" string to LatLng
   LatLng? _parseCoordinates(String coordString) {
     try {
       final parts = coordString.split(',');
@@ -88,7 +135,7 @@ class _MapScreenState extends State<MapScreen> {
         return LatLng(double.parse(parts[0].trim()), double.parse(parts[1].trim()));
       }
     } catch (e) {
-      debugPrint("Error parsing coordinates for post: $e");
+      debugPrint("Error parsing coordinates: $e");
     }
     return null;
   }
@@ -105,32 +152,37 @@ class _MapScreenState extends State<MapScreen> {
     if (permission == LocationPermission.deniedForever) return;
 
     Position position = await Geolocator.getCurrentPosition();
-    
     if (mounted) {
       setState(() {
         _userLocation = LatLng(position.latitude, position.longitude);
         _mapController.move(_userLocation!, 13.0);
+        _updateMarkers(); // Re-add markers to include user location
       });
     }
   }
 
-  void _navigateToPost(Post post) {
-    Navigator.push(
+  void _navigateToPost(Post post) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => PostDetailScreen(post: post)),
     );
+    // Refresh data when returning (in case user unfavorited something)
+    _loadData(); 
   }
 
   @override
   Widget build(BuildContext context) {
+    // Determine which list to show in the bottom sheet
+    List<Post> activeList = _activeTab == "discover" ? _verifiedPosts : _favoritePosts;
+
     return Scaffold(
       body: Stack(
         children: [
-          // 🗺️ LAYER 1: THE MAP
+          // 1. MAP LAYER
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: const LatLng(51.7592, 19.4560), // Default fallback
+              initialCenter: const LatLng(51.7592, 19.4560),
               initialZoom: 13.0,
             ),
             children: [
@@ -138,27 +190,18 @@ class _MapScreenState extends State<MapScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.wondertrip',
               ),
-              MarkerLayer(markers: [
-                ..._markers,
-                if (_userLocation != null)
-                  Marker(
-                    point: _userLocation!,
-                    width: 50,
-                    height: 50,
-                    child: const Icon(Icons.my_location, color: Colors.blue, size: 30),
-                  ),
-              ]),
+              MarkerLayer(markers: _markers),
             ],
           ),
 
-          // 🔙 LAYER 2: BACK BUTTON
-            Positioned(
+          // 2. BACK BUTTON
+          Positioned(
             top: 50,
             left: 20,
             child: Material(
-              elevation: 4, // ✅ Elevation goes here in Material
-              shape: const CircleBorder(), // Keeps it round
-              color: Colors.white, // Color goes here now
+              elevation: 4,
+              shape: const CircleBorder(),
+              color: Colors.white,
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.black), 
                 onPressed: () => Navigator.pop(context),
@@ -166,11 +209,11 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
-          // 📄 LAYER 3: DRAGGABLE SHEET (Pullable List)
+          // 3. BOTTOM SHEET
           DraggableScrollableSheet(
-            initialChildSize: 0.15, // Height when collapsed (just the handle/buttons)
-            minChildSize: 0.15,     // Minimum height
-            maxChildSize: 0.85,     // Maximum height (almost full screen)
+            initialChildSize: 0.25, // Start slightly taller to see buttons clearly
+            minChildSize: 0.15,
+            maxChildSize: 0.85,
             builder: (context, scrollController) {
               return Container(
                 decoration: const BoxDecoration(
@@ -179,10 +222,10 @@ class _MapScreenState extends State<MapScreen> {
                   boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, spreadRadius: 2)],
                 ),
                 child: ListView(
-                  controller: scrollController, // ✅ Attach controller here for drag physics
+                  controller: scrollController,
                   padding: EdgeInsets.zero,
                   children: [
-                    // 1. Drag Handle
+                    // Handle
                     Center(
                       child: Container(
                         margin: const EdgeInsets.only(top: 12, bottom: 8),
@@ -191,28 +234,38 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
 
-                    // 2. Navigation Buttons (Discover / Favorites)
+                    // TABS (Discover vs Favorites)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildNavButton(Icons.explore, "Discover", true),
-                          _buildNavButton(Icons.favorite, "Favorites", false),
+                          _buildNavButton(Icons.explore, "Discover", _activeTab == "discover", () => _switchTab("discover")),
+                          _buildNavButton(Icons.favorite, "Favorites", _activeTab == "favorites", () => _switchTab("favorites")),
                         ],
                       ),
                     ),
                     const Divider(height: 1),
 
-                    // 3. List of Verified Posts
+                    // LIST
                     if (_isLoading)
                       const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()))
-                    else if (_verifiedPosts.isEmpty)
-                      const Padding(padding: EdgeInsets.all(20), child: Center(child: Text("No verified spots found yet.")))
+                    else if (activeList.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(30), 
+                        child: Center(
+                          child: Text(
+                            _activeTab == "discover" 
+                            ? "No verified spots found." 
+                            : "You haven't favorited any places yet.",
+                            style: const TextStyle(color: Colors.grey),
+                          )
+                        )
+                      )
                     else
-                      ..._verifiedPosts.map((post) => _buildPostListItem(post)),
+                      ...activeList.map((post) => _buildPostListItem(post)),
                     
-                    const SizedBox(height: 20), // Bottom padding
+                    const SizedBox(height: 20),
                   ],
                 ),
               );
@@ -223,25 +276,41 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildNavButton(IconData icon, String label, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? const Color(0xFFE3F2FD) : Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: isActive ? const Color(0xFF0C7489) : Colors.grey, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            label, 
-            style: TextStyle(
-              color: isActive ? const Color(0xFF0C7489) : Colors.grey, 
-              fontWeight: FontWeight.bold
-            )
-          ),
-        ],
+  // Updated Button to support Taps
+  Widget _buildNavButton(IconData icon, String label, bool isActive, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive 
+            ? (_activeTab == "discover" ? const Color(0xFFE3F2FD) : const Color(0xFFFFEBEE)) // Blue tint vs Red tint
+            : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: isActive ? null : Border.all(color: Colors.grey[300]!),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon, 
+              color: isActive 
+                ? (_activeTab == "discover" ? const Color(0xFF0C7489) : Colors.red) 
+                : Colors.grey, 
+              size: 20
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label, 
+              style: TextStyle(
+                color: isActive 
+                  ? (_activeTab == "discover" ? const Color(0xFF0C7489) : Colors.red) 
+                  : Colors.grey, 
+                fontWeight: FontWeight.bold
+              )
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -264,14 +333,16 @@ class _MapScreenState extends State<MapScreen> {
           const SizedBox(width: 4),
           Text(post.rating.toString()),
           const SizedBox(width: 10),
-          const Icon(Icons.verified, color: Color(0xFF0C7489), size: 16),
-          const Text(" Verified", style: TextStyle(color: Color(0xFF0C7489), fontSize: 12)),
+          // Show "Verified" label only if it IS verified
+          if (post.verified) ...[
+            const Icon(Icons.verified, color: Color(0xFF0C7489), size: 16),
+            const Text(" Verified", style: TextStyle(color: Color(0xFF0C7489), fontSize: 12)),
+          ]
         ],
       ),
       trailing: IconButton(
         icon: const Icon(Icons.location_searching, color: Colors.grey),
         onPressed: () {
-          // Move map to this location
           LatLng? loc = _parseCoordinates(post.coordinates);
           if (loc != null) {
             _mapController.move(loc, 15.0);

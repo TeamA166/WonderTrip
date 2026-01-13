@@ -19,11 +19,25 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   List<Comment> _comments = [];
   bool _isLoading = true;
   bool _isSending = false;
-
+  bool _isFavorited = false;
   @override
   void initState() {
     super.initState();
     _loadComments();
+    _checkFavoriteStatus();
+  }
+  Future<void> _checkFavoriteStatus() async {
+    bool fav = await _authService.isPostFavorited(widget.post.id);
+    if (mounted) setState(() => _isFavorited = fav);
+  }
+  Future<void> _toggleFavorite() async {
+    setState(() => _isFavorited = !_isFavorited);
+
+    bool serverState = await _authService.toggleFavorite(widget.post.id);
+    
+    if (mounted && serverState != _isFavorited) {
+      setState(() => _isFavorited = serverState);
+    }
   }
 
   Future<void> _loadComments() async {
@@ -92,6 +106,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
         elevation: 0,
+        actions: [
+          // ✅ NEW: Favorite Heart Button
+          IconButton(
+            icon: Icon(
+              _isFavorited ? Icons.favorite : Icons.favorite_border,
+              color: _isFavorited ? Colors.red : Colors.black,
+              size: 28,
+            ),
+            onPressed: _toggleFavorite,
+          ),
+          const SizedBox(width: 10), // Spacing
+        ],
       ),
       body: Column(
         children: [

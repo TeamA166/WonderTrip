@@ -501,6 +501,43 @@ class AuthService {
       return [];
     }
   }
+  // Check if a post is favorited
+  Future<bool> isPostFavorited(String postId) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.get('$protectedUrl/posts/$postId/favorite');
+      return response.data['is_favorite'] == true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Toggle Favorite (Add/Remove)
+  Future<bool> toggleFavorite(String postId) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.post('$protectedUrl/posts/$postId/favorite');
+      return response.data['is_favorite'] == true;
+    } catch (e) {
+      debugPrint("Toggle Fav Error: $e");
+      return false; // Assume false on error
+    }
+  }
+  Future<List<Post>> getFavoritePosts() async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.get('$protectedUrl/favorites');
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = response.data;
+        return data.map((json) => Post.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Get Favorites Error: $e");
+      return [];
+    }
+  }
 }
 
 // --- DATA MODEL ---

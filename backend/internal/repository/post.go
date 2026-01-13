@@ -18,6 +18,10 @@ type PostRepository interface {
 	GetPostByID(ctx context.Context, postID uuid.UUID) (core.Post, error)
 	CreateComment(ctx context.Context, comment core.Comment) error
 	GetCommentsByPostID(ctx context.Context, postID uuid.UUID) ([]core.Comment, error)
+	AddFavorite(ctx context.Context, userID, postID uuid.UUID) error
+	RemoveFavorite(ctx context.Context, userID, postID uuid.UUID) error
+	IsFavorite(ctx context.Context, userID, postID uuid.UUID) (bool, error)
+	GetFavorites(ctx context.Context, userID uuid.UUID) ([]core.Post, error)
 }
 
 type postRepository struct {
@@ -154,4 +158,49 @@ func (r *postRepository) GetCommentsByPostID(ctx context.Context, postID uuid.UU
 		comments = append(comments, c)
 	}
 	return comments, nil
+}
+func (r *postRepository) AddFavorite(ctx context.Context, userID, postID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx,
+		"INSERT INTO favorites (user_id, post_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+		userID, postID)
+	return err
+}
+
+func (r *postRepository) RemoveFavorite(ctx context.Context, userID, postID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx,
+		"DELETE FROM favorites WHERE user_id = $1 AND post_id = $2",
+		userID, postID)
+	return err
+}
+
+func (r *postRepository) IsFavorite(ctx context.Context, userID, postID uuid.UUID) (bool, error) {
+	var exists bool
+	query := "SELECT EXISTS(SELECT 1 FROM favorites WHERE user_id = $1 AND post_id = $2)"
+	err := r.db.QueryRowContext(ctx, query, userID, postID).Scan(&exists)
+	return exists, err
+}
+func (r *postRepository) GetFavorites(ctx context.Context, userID uuid.UUID) ([]core.Post, error) {
+	// Join favorites with posts to get the actual post data
+	const query = `
+        SELECT p.id, p.user_id, p.title, p.description, p.rating, p.coordinates, p.photo_path, p.verified
+        FROM posts p
+        JOIN favorites f ON p.id = f.post_id
+        WHERE f.user_id = $1
+        ORDER BY f.created_at DESC` // Newest favorites first
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []core.Post
+	for rows.Next() {
+		var p core.Post
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified); err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, nil
 }

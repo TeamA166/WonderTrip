@@ -101,6 +101,10 @@ func main() {
 		protected.Get("/posts/:id/comments", postHandler.GetComments)
 		protected.Get("/users/photos/:filename", profileHandler.GetUserProfilePhoto)
 
+		protected.Post("/posts/:id/favorite", postHandler.ToggleFavorite)
+		protected.Get("/posts/:id/favorite", postHandler.CheckFavoriteStatus)
+		protected.Get("/favorites", postHandler.GetUserFavorites)
+
 	}
 
 	serverErr := make(chan error, 1)

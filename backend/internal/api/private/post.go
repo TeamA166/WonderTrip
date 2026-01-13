@@ -395,3 +395,71 @@ func (h *ProfileHandler) GetUserProfilePhoto(c *fiber.Ctx) error {
 
 	return c.SendFile(filePath)
 }
+func (h *PostHandler) ToggleFavorite(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	postID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Post ID"})
+	}
+
+	ctx := c.UserContext()
+
+	// Check if currently favorite
+	isFav, err := h.repo.IsFavorite(ctx, userID, postID)
+	if err != nil {
+		return c.SendStatus(http.StatusInternalServerError)
+	}
+
+	if isFav {
+		// If it IS a favorite, remove it
+		if err := h.repo.RemoveFavorite(ctx, userID, postID); err != nil {
+			return c.SendStatus(http.StatusInternalServerError)
+		}
+		return c.JSON(fiber.Map{"is_favorite": false, "message": "Removed from favorites"})
+	} else {
+		// If NOT, add it
+		if err := h.repo.AddFavorite(ctx, userID, postID); err != nil {
+			return c.SendStatus(http.StatusInternalServerError)
+		}
+		return c.JSON(fiber.Map{"is_favorite": true, "message": "Added to favorites"})
+	}
+}
+
+// GET /api/v1/protected/posts/:id/favorite
+func (h *PostHandler) CheckFavoriteStatus(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	postID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Post ID"})
+	}
+
+	isFav, err := h.repo.IsFavorite(c.UserContext(), userID, postID)
+	if err != nil {
+		return c.SendStatus(http.StatusInternalServerError)
+	}
+
+	return c.JSON(fiber.Map{"is_favorite": isFav})
+}
+
+// GET /api/v1/protected/favorites
+func (h *PostHandler) GetUserFavorites(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	favs, err := h.repo.GetFavorites(c.UserContext(), userID)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch favorites"})
+	}
+
+	return c.JSON(favs)
+}
