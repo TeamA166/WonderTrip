@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart'; // ✅ Import this
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
+import 'package:flutter_application_wondertrip/user_profile_screen.dart'; // ✅ Import User Profile Screen
 
 class PostDetailScreen extends StatefulWidget {
   final Post post;
@@ -20,16 +21,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _isLoading = true;
   bool _isSending = false;
   bool _isFavorited = false;
+
   @override
   void initState() {
     super.initState();
     _loadComments();
     _checkFavoriteStatus();
   }
+
   Future<void> _checkFavoriteStatus() async {
     bool fav = await _authService.isPostFavorited(widget.post.id);
     if (mounted) setState(() => _isFavorited = fav);
   }
+
   Future<void> _toggleFavorite() async {
     setState(() => _isFavorited = !_isFavorited);
 
@@ -69,22 +73,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  // ✅ LOGIC: Open Google Maps
   Future<void> _openMaps() async {
-    // 1. Get coordinates (e.g. "51.75, 19.45")
     final String coords = widget.post.coordinates;
-    
     if (coords.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No location data available for this post.")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No location data available.")));
       return;
     }
-
-    // 2. Create Google Maps URL
-    // removing spaces to be safe
+    
     final cleanCoords = coords.replaceAll(" ", "");
-    final Uri googleMapsUrl = Uri.parse("https://www.google.com/maps/search/?api=1&query=$cleanCoords");
+    // Using universal Google Maps link
+    final Uri googleMapsUrl = Uri.parse("http://maps.google.com/maps?q=$cleanCoords");
 
-    // 3. Launch
     try {
       if (!await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication)) {
         throw 'Could not launch maps';
@@ -97,6 +96,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  // ✅ NEW: Navigate to Full Screen Zoom
+  void _openFullScreenImage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullScreenImageView(photoPath: widget.post.photoPath),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -107,7 +116,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         iconTheme: const IconThemeData(color: Colors.black),
         elevation: 0,
         actions: [
-          // ✅ NEW: Favorite Heart Button
           IconButton(
             icon: Icon(
               _isFavorited ? Icons.favorite : Icons.favorite_border,
@@ -116,7 +124,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
             onPressed: _toggleFavorite,
           ),
-          const SizedBox(width: 10), // Spacing
+          const SizedBox(width: 10), 
         ],
       ),
       body: Column(
@@ -126,20 +134,61 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. Post Image
-                  SizedBox(
-                    height: 250,
-                    width: double.infinity,
-                    child: SecurePostImage(photoPath: widget.post.photoPath, fit: BoxFit.cover),
+                  // 1. Post Image (Tap to Zoom)
+                  GestureDetector(
+                    onTap: _openFullScreenImage,
+                    child: Hero(
+                      tag: widget.post.photoPath, // Smooth animation tag
+                      child: SizedBox(
+                        height: 250,
+                        width: double.infinity,
+                        child: SecurePostImage(photoPath: widget.post.photoPath, fit: BoxFit.cover),
+                      ),
+                    ),
                   ),
 
-                  // 2. Post Details
+                  // ✅ 2. Author Profile Row (Added Back)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context, 
+                        MaterialPageRoute(
+                          builder: (_) => UserProfileScreen(
+                            userId: widget.post.userId, 
+                            userName: widget.post.userName,
+                            userPhotoPath: widget.post.userPhotoPath
+                          )
+                        )
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      color: Colors.white,
+                      child: Row(
+                        children: [
+                          SecureAvatar(photoPath: widget.post.userPhotoPath, size: 40),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("Posted by", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              Text(widget.post.userName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const Spacer(),
+                          const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+
+                  // 3. Post Details
                   Padding(
                     padding: const EdgeInsets.all(20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Rating & Verification Row
                         Row(
                           children: [
                             const Icon(Icons.star, color: Colors.amber, size: 20),
@@ -156,7 +205,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
                         const SizedBox(height: 20),
 
-                        // ✅ 3. "Go There" Button
+                        // "Go There" Button
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -183,7 +232,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
 
                   // 5. Comments List
-                    _isLoading 
+                  _isLoading 
                     ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
                     : _comments.isEmpty
                         ? const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No comments yet. Be the first!")))
@@ -192,21 +241,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: _comments.length,
                             itemBuilder: (context, index) {
-                                final comment = _comments[index];
-
-                                // 🔍 DEBUG PRINT: This will show up in your "Debug Console"
-                                print("COMMENT DEBUG -> User: ${comment.userName} | PhotoPath: '${comment.userPhotoPath}'");
-
-                                return ListTile(
+                              final comment = _comments[index];
+                              return ListTile(
                                 leading: SecureAvatar(
-                                    photoPath: comment.userPhotoPath, 
-                                    size: 40,
+                                  photoPath: comment.userPhotoPath, 
+                                  size: 40,
                                 ),
                                 title: Text(comment.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
                                 subtitle: Text(comment.content),
-                                );
+                              );
                             },
-                            ),
+                          ),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -250,6 +295,39 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ✅ NEW: Full Screen Zoom Class
+class FullScreenImageView extends StatelessWidget {
+  final String photoPath;
+
+  const FullScreenImageView({super.key, required this.photoPath});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black, 
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          panEnabled: true,
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Hero(
+            tag: photoPath,
+            child: SecurePostImage(
+              photoPath: photoPath,
+              fit: BoxFit.contain, 
+            ),
+          ),
+        ),
       ),
     );
   }

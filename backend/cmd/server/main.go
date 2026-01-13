@@ -105,6 +105,8 @@ func main() {
 		protected.Get("/posts/:id/favorite", postHandler.CheckFavoriteStatus)
 		protected.Get("/favorites", postHandler.GetUserFavorites)
 
+		protected.Get("/users/:id/posts", postHandler.GetUserPosts)
+
 	}
 
 	serverErr := make(chan error, 1)

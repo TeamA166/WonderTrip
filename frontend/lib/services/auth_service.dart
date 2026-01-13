@@ -538,41 +538,54 @@ class AuthService {
       return [];
     }
   }
+  Future<List<Post>> getPostsByUser(String userId) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.get('$protectedUrl/users/$userId/posts');
+      
+      if (response.statusCode == 200) {
+        List<dynamic> data = response.data;
+        return data.map((json) => Post.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
 }
 
 // --- DATA MODEL ---
 
 class Post {
   final String id;
-  final String userId;
+  final String userId; // Make sure this is here
   final String title;
   final String description;
   final int rating;
+  final String coordinates;
   final String photoPath;
   final bool verified;
-  final String coordinates; // ✅ ADD THIS
+  final String userName;      // ✅ NEW
+  final String userPhotoPath; // ✅ NEW
 
   Post({
-    required this.id,
-    required this.userId,
-    required this.title,
-    required this.description,
-    required this.rating,
-    required this.photoPath,
-    required this.verified,
-    required this.coordinates, // ✅ ADD THIS
+    required this.id, required this.userId, required this.title, required this.description,
+    required this.rating, required this.coordinates, required this.photoPath, required this.verified,
+    required this.userName, required this.userPhotoPath,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
     return Post(
       id: json['id'],
-      userId: json['user_id'] ?? "",
+      userId: json['user_id'],
       title: json['title'],
       description: json['description'],
       rating: json['rating'],
+      coordinates: json['coordinates'] ?? "",
       photoPath: json['photo_path'],
       verified: json['verified'] ?? false,
-      coordinates: json['coordinates'] ?? "", // ✅ ADD THIS (Default to empty if missing)
+      userName: json['user_name'] ?? "Unknown",        // ✅ NEW
+      userPhotoPath: json['user_photo_path'] ?? "",     // ✅ NEW
     );
   }
 }

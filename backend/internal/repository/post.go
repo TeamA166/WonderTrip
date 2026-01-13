@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/TeamA166/WonderTrip/internal/core"
@@ -32,6 +33,12 @@ func NewPostRepository(db *sqlx.DB) PostRepository {
 	return &postRepository{db: db}
 }
 
+const postSelectQuery = `
+    SELECT p.id, p.user_id, p.title, p.description, p.rating, p.coordinates, p.photo_path, p.verified, p.created_at,
+           u.name, COALESCE(u.profile_path, '') 
+    FROM posts p
+    JOIN users u ON p.user_id = u.id `
+
 func (r *postRepository) CreatePost(ctx context.Context, post core.Post) (core.Post, error) {
 	const query = `
 		INSERT INTO posts (user_id, title, description, rating, coordinates, photo_path)
@@ -47,25 +54,24 @@ func (r *postRepository) CreatePost(ctx context.Context, post core.Post) (core.P
 }
 
 func (r *postRepository) GetPostsByStatus(ctx context.Context, isVerified bool, limit int, offset int) ([]core.Post, error) {
-
-	const query = `
-        SELECT id, user_id, title, description, rating, coordinates, photo_path, verified, created_at, updated_at
-        FROM posts
-        WHERE verified = $1 
-        ORDER BY created_at DESC
+	// ✅ FIX: Use the shared query to get User Name & Photo
+	// We add "WHERE p.verified = $1" to filter by status
+	query := postSelectQuery + `
+        WHERE p.verified = $1 
+        ORDER BY p.created_at DESC
         LIMIT $2 OFFSET $3`
 
-	posts := []core.Post{}
-
-	if err := r.db.SelectContext(ctx, &posts, query, isVerified, limit, offset); err != nil {
+	rows, err := r.db.QueryContext(ctx, query, isVerified, limit, offset)
+	if err != nil {
 		return nil, fmt.Errorf("repository: get posts by status: %w", err)
 	}
+	defer rows.Close()
 
-	return posts, nil
+	// ✅ FIX: Use the helper scanner so it fills in UserName and UserPhotoPath
+	return r.scanPosts(rows)
 }
 func (r *postRepository) GetPostsByUserID(ctx context.Context, userID uuid.UUID) ([]core.Post, error) {
-	// Fetch all posts for a specific user
-	const query = `SELECT id, user_id, title, description, rating, coordinates, photo_path, verified, created_at FROM posts WHERE user_id = $1 ORDER BY created_at DESC`
+	query := postSelectQuery + "WHERE p.user_id = $1 ORDER BY p.created_at DESC"
 
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -73,15 +79,7 @@ func (r *postRepository) GetPostsByUserID(ctx context.Context, userID uuid.UUID)
 	}
 	defer rows.Close()
 
-	var posts []core.Post
-	for rows.Next() {
-		var p core.Post
-		if err := rows.Scan(&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified, &p.CreatedAt); err != nil {
-			return nil, err
-		}
-		posts = append(posts, p)
-	}
-	return posts, nil
+	return r.scanPosts(rows)
 }
 
 func (r *postRepository) DeletePost(ctx context.Context, postID uuid.UUID, userID uuid.UUID) error {
@@ -120,10 +118,12 @@ func (r *postRepository) UpdatePost(ctx context.Context, p core.Post) error {
 }
 
 func (r *postRepository) GetPostByID(ctx context.Context, postID uuid.UUID) (core.Post, error) {
-	const query = `SELECT id, user_id, title, description, rating, coordinates, photo_path, verified FROM posts WHERE id = $1`
+	query := postSelectQuery + "WHERE p.id = $1"
+
 	var p core.Post
 	err := r.db.QueryRowContext(ctx, query, postID).Scan(
-		&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified,
+		&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified, &p.CreatedAt,
+		&p.UserName, &p.UserPhotoPath,
 	)
 	return p, err
 }
@@ -180,13 +180,15 @@ func (r *postRepository) IsFavorite(ctx context.Context, userID, postID uuid.UUI
 	return exists, err
 }
 func (r *postRepository) GetFavorites(ctx context.Context, userID uuid.UUID) ([]core.Post, error) {
-	// Join favorites with posts to get the actual post data
+	// ✅ FIX: Join with 'users' table to get Name and PhotoPath for favorites too
 	const query = `
-        SELECT p.id, p.user_id, p.title, p.description, p.rating, p.coordinates, p.photo_path, p.verified
+        SELECT p.id, p.user_id, p.title, p.description, p.rating, p.coordinates, p.photo_path, p.verified, p.created_at,
+               u.name, COALESCE(u.profile_path, '')
         FROM posts p
         JOIN favorites f ON p.id = f.post_id
+        JOIN users u ON p.user_id = u.id
         WHERE f.user_id = $1
-        ORDER BY f.created_at DESC` // Newest favorites first
+        ORDER BY f.created_at DESC`
 
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -194,13 +196,31 @@ func (r *postRepository) GetFavorites(ctx context.Context, userID uuid.UUID) ([]
 	}
 	defer rows.Close()
 
+	// Now we can use your helper scanPosts because the columns match!
+	return r.scanPosts(rows)
+}
+func (r *postRepository) scanPosts(rows *sql.Rows) ([]core.Post, error) {
 	var posts []core.Post
 	for rows.Next() {
 		var p core.Post
-		if err := rows.Scan(&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified); err != nil {
+		if err := rows.Scan(
+			&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified, &p.CreatedAt,
+			&p.UserName, &p.UserPhotoPath,
+		); err != nil {
 			return nil, err
 		}
 		posts = append(posts, p)
 	}
 	return posts, nil
+}
+func (r *postRepository) GetPosts(ctx context.Context) ([]core.Post, error) {
+	query := postSelectQuery + "ORDER BY p.created_at DESC"
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return r.scanPosts(rows)
 }

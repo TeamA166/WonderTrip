@@ -463,3 +463,16 @@ func (h *PostHandler) GetUserFavorites(c *fiber.Ctx) error {
 
 	return c.JSON(favs)
 }
+func (h *PostHandler) GetUserPosts(c *fiber.Ctx) error {
+	targetUserID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid User ID"})
+	}
+
+	posts, err := h.repo.GetPostsByUserID(c.UserContext(), targetUserID)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch user posts"})
+	}
+
+	return c.JSON(posts)
+}
