@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:latlong2/latlong.dart'; // Ensure you have latlong2 package
+import 'package:image_cropper/image_cropper.dart'; // ✅ Import Cropper
+import 'package:latlong2/latlong.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
-import 'package:flutter_application_wondertrip/location_picker_screen.dart'; // Ensure this exists
+import 'package:flutter_application_wondertrip/location_picker_screen.dart';
 import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
 
 class EditPostScreen extends StatefulWidget {
@@ -34,7 +35,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
     _descController = TextEditingController(text: widget.post.description);
     _rating = widget.post.rating;
 
-    // 2. Pre-fill Location (Parse "lat, lng" string)
+    // 2. Pre-fill Location
     _parseCoordinates(widget.post.coordinates);
   }
 
@@ -53,10 +54,40 @@ class _EditPostScreenState extends State<EditPostScreen> {
     }
   }
 
+  // ✅ UPDATED: Pick AND Crop Image
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
-      setState(() => _newImageFile = File(pickedFile.path));
+      // Immediately crop the new image
+      await _cropImage(File(pickedFile.path));
+    }
+  }
+
+  // ✅ NEW: Crop Logic (Same as Create Screen)
+  Future<void> _cropImage(File imageFile) async {
+    CroppedFile? croppedFile = await ImageCropper().cropImage(
+      sourcePath: imageFile.path,
+      aspectRatio: const CropAspectRatio(ratioX: 4, ratioY: 3), // Force 4:3
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Edit Photo',
+          toolbarColor: const Color(0xFF0C7489),
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.ratio4x3,
+          lockAspectRatio: true,
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: 'Edit Photo',
+          aspectRatioLockEnabled: true,
+        ),
+      ],
+    );
+
+    if (croppedFile != null) {
+      setState(() {
+        _newImageFile = File(croppedFile.path);
+      });
     }
   }
 
@@ -85,7 +116,6 @@ class _EditPostScreenState extends State<EditPostScreen> {
 
     String coordString = "${_selectedLocation!.latitude}, ${_selectedLocation!.longitude}";
 
-    // Ensure updatePost in AuthService handles the file properly (we'll check this next)
     bool success = await _authService.updatePost(
       widget.post.id,
       _titleController.text,
@@ -100,7 +130,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
     if (success) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Post updated! It is now pending verification.")));
-        Navigator.pop(context, true); // Return true to refresh list
+        Navigator.pop(context, true);
       }
     } else {
       if (mounted) {
@@ -146,33 +176,36 @@ class _EditPostScreenState extends State<EditPostScreen> {
             // 1. Image Picker (Shows OLD vs NEW)
             GestureDetector(
               onTap: _pickImage,
-              child: Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: _newImageFile != null
-                      ? Image.file(_newImageFile!, fit: BoxFit.cover) // Show NEW selection
-                      : Stack(
-                          children: [
-                            // Show OLD photo from server
-                            Positioned.fill(child: SecurePostImage(photoPath: widget.post.photoPath, fit: BoxFit.cover)), 
-                            Container(
-                                color: Colors.black26, 
-                                child: const Center(child: Icon(Icons.edit, color: Colors.white, size: 40))
-                            ),
-                          ],
-                        ),
+              // ✅ WRAP in AspectRatio for preview consistency
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: _newImageFile != null
+                        ? Image.file(_newImageFile!, fit: BoxFit.cover) // Show NEW cropped photo
+                        : Stack(
+                            children: [
+                              // Show OLD photo from server
+                              Positioned.fill(child: SecurePostImage(photoPath: widget.post.photoPath, fit: BoxFit.cover)), 
+                              Container(
+                                  color: Colors.black26, 
+                                  child: const Center(child: Icon(Icons.edit, color: Colors.white, size: 40))
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            const Center(child: Text("Tap image to change", style: TextStyle(color: Colors.grey, fontSize: 12))),
+            const Center(child: Text("Tap image to change (4:3 Ratio)", style: TextStyle(color: Colors.grey, fontSize: 12))),
             const SizedBox(height: 20),
 
             // 2. Text Fields
@@ -215,7 +248,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
                       child: Text(
                         _selectedLocation == null 
                           ? "Select location" 
-                          : "Location: ${_selectedLocation!.latitude.toStringAsFixed(4)}, ${_selectedLocation!.longitude.toStringAsFixed(4)}",
+                          : "Location Selected",
                         style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
                       ),
                     ),

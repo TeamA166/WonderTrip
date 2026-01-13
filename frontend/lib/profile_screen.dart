@@ -2,8 +2,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/login_screen.dart';
-import 'dart:io'; // Required for File
-import 'package:image_picker/image_picker.dart'; // Required for picking images
+import 'dart:io'; 
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart'; // ✅ Import Cropper
 import 'package:flutter_application_wondertrip/change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -16,13 +17,12 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final AuthService _authService = AuthService();
   
-  // ✅ Controllers for editing
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _surnameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   
   bool _isLoading = true;
-  bool _isSaving = false; // Loading state for "Save" button
+  bool _isSaving = false; 
   Uint8List? _profileImageBytes;
 
   @override
@@ -51,7 +51,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final userData = results[0] as Map<String, dynamic>?;
           _profileImageBytes = results[1] as Uint8List?;
           
-          // ✅ Fill controllers with data from backend
           if (userData != null) {
             _nameController.text = userData['name'] ?? "";
             _surnameController.text = userData['surname'] ?? "";
@@ -67,7 +66,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ✅ SAVE CHANGES (PUT Request)
   Future<void> _handleSaveChanges() async {
     setState(() => _isSaving = true);
 
@@ -91,7 +89,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ✅ IMAGE PICKER LOGIC
+  // ✅ UPDATED: Image Picker with Circular/Square Crop
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _pickAndUploadImage() async {
@@ -99,20 +97,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // 1. Pick Image from Gallery
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 800, // Resize to save bandwidth
-        imageQuality: 80,
+        // We let the cropper handle the resizing now
       );
 
       if (pickedFile == null) return;
 
+      // 2. Crop the Image (1:1 Ratio for Profile Pics)
+      File? croppedFile = await _cropImage(File(pickedFile.path));
+
+      if (croppedFile == null) return; // User cancelled cropping
+
       setState(() => _isLoading = true);
 
-      // 2. Upload to Backend
-      File imageFile = File(pickedFile.path);
-      bool success = await _authService.uploadProfilePhoto(imageFile);
+      // 3. Upload the CROPPED image
+      bool success = await _authService.uploadProfilePhoto(croppedFile);
 
       if (success) {
-        // 3. Refresh Data to show new image
+        // 4. Refresh Data to show new image
         await _loadProfileData(); 
         if (mounted) {
            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile photo updated!")));
@@ -128,6 +129,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // ✅ Helper Function for Profile Cropping
+    Future<File?> _cropImage(File imageFile) async {
+        CroppedFile? cropped = await ImageCropper().cropImage(
+        sourcePath: imageFile.path,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1), 
+        uiSettings: [
+            AndroidUiSettings(
+            toolbarTitle: 'Move & Scale',
+            toolbarColor: const Color(0xFF0C7489),
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.square,
+            lockAspectRatio: true, 
+            hideBottomControls: true, 
+            ),
+            IOSUiSettings(
+            title: 'Move & Scale',
+            aspectRatioLockEnabled: true,
+            ),
+        ],
+        maxWidth: 500,
+        maxHeight: 500, 
+        );
+
+        if (cropped != null) {
+        return File(cropped.path);
+        }
+        return null;
+    }
 
   Future<void> _handleLogout() async {
     await _authService.logout();
@@ -198,7 +228,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               alignment: Alignment.center,
                             ),
                             
-                            // 2. ✅ The Camera Button (Correctly Placed)
+                            // 2. The Camera Button
                             Positioned(
                               bottom: 0,
                               right: 0,
@@ -240,24 +270,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const Text("Personal Information", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                         const SizedBox(height: 15),
 
-                        // ✅ Editable Fields
                         _buildEditableTile("Name", _nameController),
                         _buildEditableTile("Surname", _surnameController),
                         _buildEditableTile("Email", _emailController),
                         
-                        // Password (Static)
-                        // Inside build method -> Personal Information Column
                         _buildStaticTile("Password", "********", onTap: () {
-                        // ✅ Navigate to the new Change Password Screen
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const ChangePasswordScreen()));
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const ChangePasswordScreen()));
                         }),
                         
-                        // Logout
                         _buildStaticTile("Log Out", "", onTap: _handleLogout, isLogout: true),
                         
                         const SizedBox(height: 20),
 
-                        // ✅ SAVE BUTTON
                         SizedBox(
                           width: double.infinity,
                           height: 55,
@@ -282,7 +306,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Widget for Editable Fields
   Widget _buildEditableTile(String label, TextEditingController controller) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -316,7 +339,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Widget for Static Fields
   Widget _buildStaticTile(String label, String value, {VoidCallback? onTap, bool isLogout = false}) {
     return GestureDetector(
       onTap: onTap,

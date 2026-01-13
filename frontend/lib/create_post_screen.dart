@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart'; // ✅ Import this
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/location_picker_screen.dart';
@@ -19,14 +20,47 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   
   LatLng? _selectedLocation;
   File? _imageFile;
-  int _rating = 5; // Default 5 stars
+  int _rating = 5;
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
 
+  // ✅ UPDATED: Pick AND Crop Image
   Future<void> _pickImage() async {
+    // 1. Pick Image
     final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    
     if (pickedFile != null) {
-      setState(() => _imageFile = File(pickedFile.path));
+      // 2. Crop Image immediately
+      await _cropImage(File(pickedFile.path));
+    }
+  }
+
+  // ✅ NEW: Crop Logic
+  Future<void> _cropImage(File imageFile) async {
+    CroppedFile? croppedFile = await ImageCropper().cropImage(
+      sourcePath: imageFile.path,
+      // Fixed Aspect Ratio to match your feed cards (e.g., 4:3 is standard for posts)
+      aspectRatio: const CropAspectRatio(ratioX: 4, ratioY: 3), 
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Edit Photo',
+          toolbarColor: const Color(0xFF0C7489), // Your App Color
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.ratio4x3,
+          lockAspectRatio: true, // Force the user to keep the rectangle shape
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: 'Edit Photo',
+          aspectRatioLockEnabled: true, // Force rectangle on iOS too
+        ),
+      ],
+    );
+
+    if (croppedFile != null) {
+      setState(() {
+        _imageFile = File(croppedFile.path);
+      });
     }
   }
 
@@ -77,13 +111,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
-  // ✅ Helper to build the Star Rating Row
   Widget _buildStarRating() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center, // Center the stars
+      mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(5, (index) {
-        // Star Index is 0, 1, 2, 3, 4
-        // Rating is 1..5
         int starValue = index + 1;
         return IconButton(
           onPressed: () {
@@ -92,12 +123,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             });
           },
           icon: Icon(
-            starValue <= _rating ? Icons.star : Icons.star_border, // Filled or Outline
-            color: starValue <= _rating ? Colors.amber : Colors.grey, // Gold or Grey
-            size: 40, // Make them nice and big
+            starValue <= _rating ? Icons.star : Icons.star_border,
+            color: starValue <= _rating ? Colors.amber : Colors.grey,
+            size: 40,
           ),
-          padding: EdgeInsets.zero, // Reduce gap between stars
-          constraints: const BoxConstraints(), // Removes default padding
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
         );
       }),
     );
@@ -118,32 +149,48 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Image Picker
+            // 1. Image Picker (Preview shows the exact crop)
             GestureDetector(
               onTap: _pickImage,
-              child: Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.grey[300]!),
-                  image: _imageFile != null 
-                    ? DecorationImage(image: FileImage(_imageFile!), fit: BoxFit.cover)
-                    : null,
+              child: AspectRatio( // ✅ Force the preview to match the crop ratio (4:3)
+                aspectRatio: 4 / 3,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.grey[300]!),
+                    image: _imageFile != null 
+                      ? DecorationImage(image: FileImage(_imageFile!), fit: BoxFit.cover)
+                      : null,
+                  ),
+                  child: _imageFile == null
+                      ? const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
+                            SizedBox(height: 10),
+                            Text("Tap to add photo", style: TextStyle(color: Colors.grey)),
+                            Text("(4:3 Ratio)", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
+                        )
+                      : null,
                 ),
-                child: _imageFile == null
-                    ? const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_a_photo, size: 40, color: Colors.grey),
-                          SizedBox(height: 10),
-                          Text("Tap to add photo", style: TextStyle(color: Colors.grey)),
-                        ],
-                      )
-                    : null,
               ),
             ),
+            
+            // Helpful hint text
+            if (_imageFile != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Center(
+                  child: Text(
+                    "This is exactly how it will appear in the feed.",
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ),
+              ),
+
             const SizedBox(height: 20),
 
             // 2. Text Fields
@@ -205,11 +252,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
             const SizedBox(height: 30),
 
-            // 4. ✅ NEW STAR RATING SECTION
+            // 4. Rating
             const Center(child: Text("Rate your experience", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey))),
             const SizedBox(height: 10),
             
-            _buildStarRating(), // Calls our new helper function
+            _buildStarRating(),
 
             const SizedBox(height: 30),
 
