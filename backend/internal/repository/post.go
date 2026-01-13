@@ -23,6 +23,8 @@ type PostRepository interface {
 	RemoveFavorite(ctx context.Context, userID, postID uuid.UUID) error
 	IsFavorite(ctx context.Context, userID, postID uuid.UUID) (bool, error)
 	GetFavorites(ctx context.Context, userID uuid.UUID) ([]core.Post, error)
+	GetPosts(ctx context.Context, limit int, offset int) ([]core.Post, error)
+	GetFeedPosts(ctx context.Context, limit int, offset int, excludeUserID uuid.UUID) ([]core.Post, error)
 }
 
 type postRepository struct {
@@ -213,10 +215,28 @@ func (r *postRepository) scanPosts(rows *sql.Rows) ([]core.Post, error) {
 	}
 	return posts, nil
 }
-func (r *postRepository) GetPosts(ctx context.Context) ([]core.Post, error) {
-	query := postSelectQuery + "ORDER BY p.created_at DESC"
+func (r *postRepository) GetPosts(ctx context.Context, limit int, offset int) ([]core.Post, error) {
+	// ✅ ADD LIMIT AND OFFSET
+	query := postSelectQuery + `
+        ORDER BY p.created_at DESC
+        LIMIT $1 OFFSET $2`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return r.scanPosts(rows)
+}
+func (r *postRepository) GetFeedPosts(ctx context.Context, limit int, offset int, excludeUserID uuid.UUID) ([]core.Post, error) {
+	// Logic: Same as GetPosts, but adds 'WHERE user_id != $1'
+	query := postSelectQuery + `
+        WHERE p.user_id != $1 
+        ORDER BY p.created_at DESC
+        LIMIT $2 OFFSET $3`
+
+	rows, err := r.db.QueryContext(ctx, query, excludeUserID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

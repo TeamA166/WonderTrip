@@ -476,3 +476,56 @@ func (h *PostHandler) GetUserPosts(c *fiber.Ctx) error {
 
 	return c.JSON(posts)
 }
+func (h *PostHandler) GetPosts(c *fiber.Ctx) error {
+	// 1. Parse Pagination Query Params
+	page, err := strconv.Atoi(c.Query("page", "1"))
+	if err != nil || page < 1 {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid page number"})
+	}
+
+	limit, err := strconv.Atoi(c.Query("limit", "10"))
+	if err != nil || limit < 1 {
+		limit = 10 // Default limit
+	}
+
+	// 2. Calculate Offset
+	offset := (page - 1) * limit
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
+	defer cancel()
+
+	// 3. Call the Repository (The one you just added)
+	posts, err := h.repo.GetPosts(ctx, limit, offset)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch posts"})
+	}
+
+	// 4. Return Data
+	return c.Status(http.StatusOK).JSON(posts)
+}
+func (h *PostHandler) GetFeed(c *fiber.Ctx) error {
+	// 1. Get Current User ID (To exclude their own posts)
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	// 2. Pagination
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	// 3. Call the NEW Repository function
+	posts, err := h.repo.GetFeedPosts(c.UserContext(), limit, offset, userID)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch feed"})
+	}
+
+	return c.Status(http.StatusOK).JSON(posts)
+}

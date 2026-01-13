@@ -552,6 +552,29 @@ class AuthService {
       return [];
     }
   }
+  Future<List<Post>> getFeed({int page = 1, int limit = 10}) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      
+      // Points to the NEW /feed endpoint
+      final response = await _dio.get(
+        '$protectedUrl/feed',
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = response.data;
+        return data.map((json) => Post.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Get Feed Error: $e");
+      return [];
+    }
+  }
 }
 
 // --- DATA MODEL ---

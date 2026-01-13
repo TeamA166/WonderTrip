@@ -84,6 +84,8 @@ func main() {
 	{
 		protected.Post("/posts", postHandler.Publish)
 		protected.Get("/posts", postHandler.GetVerifiedPosts)
+		protected.Get("/feed", postHandler.GetFeed)
+		//
 		protected.Get("/posts/unverified", postHandler.GetUnverifiedPosts)
 		protected.Get("/posts/photo/:filename", postHandler.GetPostPhoto)
 		protected.Get("/posts/me", postHandler.GetMyPosts)

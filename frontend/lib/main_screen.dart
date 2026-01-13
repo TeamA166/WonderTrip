@@ -9,6 +9,7 @@ import 'package:flutter_application_wondertrip/login_screen.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
 import 'package:flutter_application_wondertrip/post_detail_screen.dart';
+import 'package:flutter_application_wondertrip/feed_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -149,6 +150,14 @@ class _MainScreenState extends State<MainScreen> {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const MyPostsScreen()));
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.public, color: Colors.black87), // Globe Icon
+              title: const Text("Global Feed"),
+              onTap: () {
+                Navigator.pop(context); // Close the drawer
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const FeedScreen()));
+              },
+            ),
             const Spacer(),
             const Divider(),
             ListTile(
@@ -262,7 +271,7 @@ class _MainScreenState extends State<MainScreen> {
                   const SizedBox(height: 30),
 
                   // Travelers' posts (Unverified)
-                  _buildSectionTitle("Travelers' posts!", "A favorite among travelers"),
+                  _buildSectionTitle("Travelers' posts!", "The newest among travelers"),
                   SizedBox(
                     height: 200,
                     child: _unverifiedPosts.isEmpty 
