@@ -14,7 +14,6 @@ import (
 	"github.com/TeamA166/WonderTrip/internal/database"
 	"github.com/TeamA166/WonderTrip/internal/repository"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
@@ -54,14 +53,14 @@ func main() {
 
 	app := fiber.New()
 
-	app.Use(cors.New(cors.Config{
-		// ✅ FIX: List specific domains instead of "*"
-		// Note: For Flutter Web, you usually run on a specific port (see below)
-		AllowOrigins:     "http://localhost:3000, http://127.0.0.1:3000, http://10.0.2.2:8080",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
-		AllowCredentials: true, // This requires specific AllowOrigins
-	}))
+	// app.Use(cors.New(cors.Config{
+	// 	// ✅ FIX: List specific domains instead of "*"
+	// 	// Note: For Flutter Web, you usually run on a specific port (see below)
+	// 	AllowOrigins:     "http://localhost:3000, http://127.0.0.1:3000, http://10.0.2.2:8080",
+	// 	AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+	// 	AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
+	// 	AllowCredentials: true, // This requires specific AllowOrigins
+	// }))
 
 	app.Use(logger.New())
 
