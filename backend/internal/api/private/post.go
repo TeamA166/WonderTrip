@@ -548,3 +548,21 @@ func (h *PostHandler) ToggleLike(c *fiber.Ctx) error {
 
 	return c.SendStatus(http.StatusOK)
 }
+func (h *PostHandler) CheckLikeStatus(c *fiber.Ctx) error {
+	userID, err := parseUserID(c.Locals("userID"))
+	if err != nil {
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	postID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Post ID"})
+	}
+
+	isLiked, err := h.repo.IsLiked(c.UserContext(), userID, postID)
+	if err != nil {
+		return c.SendStatus(http.StatusInternalServerError)
+	}
+
+	return c.JSON(fiber.Map{"is_liked": isLiked})
+}

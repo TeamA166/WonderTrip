@@ -584,6 +584,15 @@ class AuthService {
       return false;
     }
   }
+  Future<bool> isPostLiked(String postId) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      final response = await _dio.get('$protectedUrl/posts/$postId/like');
+      return response.data['is_liked'] == true;
+    } catch (e) {
+      return false;
+    }
+  }
 }
 
 // --- DATA MODEL ---

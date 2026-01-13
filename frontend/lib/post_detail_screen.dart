@@ -32,8 +32,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _likeCount = widget.post.likeCount;
     _isBookmarked = widget.post.isFavorited;
     _loadComments();
+    _syncRealStatus();
   }
 
+    Future<void> _syncRealStatus() async {
+    // Check Like Status
+    bool realLikeStatus = await _authService.isPostLiked(widget.post.id);
+    // Check Bookmark Status
+    bool realFavStatus = await _authService.isPostFavorited(widget.post.id);
+
+    if (mounted) {
+      setState(() {
+        _isLiked = realLikeStatus;
+        _isBookmarked = realFavStatus;
+ 
+      });
+    }
+  }
   Future<void> _handleLike() async {
     setState(() {
       _isLiked = !_isLiked;

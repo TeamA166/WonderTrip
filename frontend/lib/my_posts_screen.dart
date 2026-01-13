@@ -3,6 +3,9 @@ import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
 import 'package:flutter_application_wondertrip/post_detail_screen.dart';
 import 'package:flutter_application_wondertrip/edit_post_screen.dart';
+// Import FeedScreen to access the "Global Feed" button if needed, 
+// though typically this is in the Drawer or AppBar actions.
+import 'package:flutter_application_wondertrip/feed_screen.dart';
 
 class MyPostsScreen extends StatefulWidget {
   const MyPostsScreen({super.key});
@@ -58,15 +61,12 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
     }
   }
 
-  // ✅ UPDATED: Modern Edit Dialog with Stars
-Future<void> _handleEdit(Post post) async {
-    // Navigate and wait for result
+  Future<void> _handleEdit(Post post) async {
     final bool? result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => EditPostScreen(post: post)),
     );
 
-    // If result is true, it means update was successful, so refresh list
     if (result == true) {
       _loadMyPosts();
     }
@@ -77,27 +77,37 @@ Future<void> _handleEdit(Post post) async {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F6F6),
       appBar: AppBar(
-        title: const Text("My Posts", style: TextStyle(color: Colors.black)),
+        title: const Text("My Posts", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
+        actions: [
+          // Optional: Add Global Feed shortcut here if desired
+          IconButton(
+            icon: const Icon(Icons.public, color: Color(0xFF0C7489)),
+            onPressed: () {
+               Navigator.push(context, MaterialPageRoute(builder: (context) => const FeedScreen()));
+            },
+          ),
+          const SizedBox(width: 10),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _myPosts.isEmpty
               ? const Center(child: Text("You haven't posted anything yet."))
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   itemCount: _myPosts.length,
                   itemBuilder: (context, index) {
                     final post = _myPosts[index];
-                    return _buildPostItem(post);
+                    return _buildModernPostItem(post);
                   },
                 ),
     );
   }
 
-  Widget _buildPostItem(Post post) {
+  Widget _buildModernPostItem(Post post) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -106,75 +116,164 @@ Future<void> _handleEdit(Post post) async {
         );
       },
       child: Card(
-        margin: const EdgeInsets.only(bottom: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        margin: const EdgeInsets.only(bottom: 20),
+        elevation: 4,
+        shadowColor: Colors.black26,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Post Image
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              child: SizedBox(
-                height: 200,
-                width: double.infinity,
-                child: SecurePostImage(photoPath: post.photoPath),
-              ),
-            ),
             
-            // 2. Post Content
+            // ✅ MODERN IMAGE STACK
+            Stack(
+              children: [
+                // 1. The Image
+                SizedBox(
+                  height: 250, // Nice tall image
+                  width: double.infinity,
+                  child: SecurePostImage(photoPath: post.photoPath, fit: BoxFit.cover),
+                ),
+
+                // 2. Title (Top Left)
+                Positioned(
+                  top: 15,
+                  left: 15,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    constraints: const BoxConstraints(maxWidth: 200), // Prevent overflow
+                    child: Text(
+                      post.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+
+                // 3. Edit Menu (Top Right)
+                Positioned(
+                  top: 5,
+                  right: 5,
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      cardColor: Colors.white, // Popup background
+                    ),
+                    child: PopupMenuButton<String>(
+                      icon: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.4),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.more_horiz, color: Colors.white, size: 20),
+                      ),
+                      onSelected: (value) {
+                        if (value == 'edit') _handleEdit(post);
+                        if (value == 'delete') _handleDelete(post.id);
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text("Edit")]),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text("Delete", style: TextStyle(color: Colors.red))]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 4. Likes (Bottom Left)
+                Positioned(
+                  bottom: 15,
+                  left: 15,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.favorite, color: Colors.redAccent, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          "${post.likeCount}", 
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 5. Rating (Bottom Right)
+                Positioned(
+                  bottom: 15,
+                  right: 15,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star, color: Colors.amber, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          "${post.rating}/5",
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // ✅ FOOTER (Status & Description)
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Verification Status
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: Text(
-                          post.title,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          overflow: TextOverflow.ellipsis,
+                      Icon(
+                        post.verified ? Icons.verified : Icons.hourglass_empty,
+                        color: post.verified ? const Color(0xFF119DA4) : Colors.orange,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        post.verified ? "Verified Public Post" : "Pending Verification",
+                        style: TextStyle(
+                          color: post.verified ? const Color(0xFF119DA4) : Colors.orange,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
                       ),
-                      // 3. EDIT / DELETE MENU
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'edit') _handleEdit(post);
-                          if (value == 'delete') _handleDelete(post.id);
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Row(children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text("Edit")]),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text("Delete", style: TextStyle(color: Colors.red))]),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 16),
-                      const SizedBox(width: 4),
-                      Text(post.rating.toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 10),
-                      if (post.verified) 
-                        const Text("Verified", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12))
-                      else 
-                        const Text("Pending", style: TextStyle(color: Colors.orange, fontSize: 12)),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(post.description, maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 10),
                   
-                  const Text(
-                    "View Comments & Details", 
-                    style: TextStyle(color: Color(0xFF119DA4), fontWeight: FontWeight.bold)
+                  // Description
+                  Text(
+                    post.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.black87),
                   ),
                 ],
               ),

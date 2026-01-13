@@ -26,6 +26,7 @@ type PostRepository interface {
 	GetPosts(ctx context.Context, limit int, offset int) ([]core.Post, error)
 	GetFeedPosts(ctx context.Context, limit int, offset int, excludeUserID uuid.UUID) ([]core.Post, error)
 	ToggleLike(ctx context.Context, userID, postID uuid.UUID) error
+	IsLiked(ctx context.Context, userID, postID uuid.UUID) (bool, error)
 }
 
 type postRepository struct {
@@ -74,7 +75,20 @@ func (r *postRepository) GetPostsByStatus(ctx context.Context, isVerified bool, 
 	return r.scanPosts(rows)
 }
 func (r *postRepository) GetPostsByUserID(ctx context.Context, userID uuid.UUID) ([]core.Post, error) {
-	query := postSelectQuery + "WHERE p.user_id = $1 ORDER BY p.created_at DESC"
+	// ✅ CHANGED: We now select the Like Count!
+	// Note: We set 'is_favorited' and 'is_liked' to false here by default.
+	// (To show if *YOU* liked these posts, we would need to pass your ID into this function too,
+	// but for now, this fixes the "0 Likes" bug).
+	const query = `
+        SELECT p.id, p.user_id, p.title, p.description, p.rating, p.coordinates, p.photo_path, p.verified, p.created_at,
+               u.name, COALESCE(u.profile_path, ''),
+               false AS is_favorited, 
+               false AS is_liked,     
+               (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS like_count
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.user_id = $1 
+        ORDER BY p.created_at DESC`
 
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -82,7 +96,23 @@ func (r *postRepository) GetPostsByUserID(ctx context.Context, userID uuid.UUID)
 	}
 	defer rows.Close()
 
-	return r.scanPosts(rows)
+	var posts []core.Post
+	for rows.Next() {
+		var p core.Post
+		// ✅ We must manually scan because we added 3 new columns (fav, liked, count)
+		// compared to the old scanner.
+		if err := rows.Scan(
+			&p.ID, &p.UserID, &p.Title, &p.Description, &p.Rating, &p.Coordinates, &p.PhotoPath, &p.Verified, &p.CreatedAt,
+			&p.UserName, &p.UserPhotoPath,
+			&p.IsFavorited,
+			&p.IsLiked,
+			&p.LikeCount, // <--- This will now contain the correct number!
+		); err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, nil
 }
 
 func (r *postRepository) DeletePost(ctx context.Context, postID uuid.UUID, userID uuid.UUID) error {
@@ -284,4 +314,10 @@ func (r *postRepository) ToggleLike(ctx context.Context, userID, postID uuid.UUI
 		_, err := r.db.ExecContext(ctx, "INSERT INTO post_likes (user_id, post_id) VALUES ($1, $2)", userID, postID)
 		return err
 	}
+}
+func (r *postRepository) IsLiked(ctx context.Context, userID, postID uuid.UUID) (bool, error) {
+	var exists bool
+	query := "SELECT EXISTS(SELECT 1 FROM post_likes WHERE user_id = $1 AND post_id = $2)"
+	err := r.db.QueryRowContext(ctx, query, userID, postID).Scan(&exists)
+	return exists, err
 }
