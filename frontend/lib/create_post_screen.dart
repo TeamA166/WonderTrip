@@ -1,10 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart'; // ✅ Import this
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/location_picker_screen.dart';
+import 'package:flutter_application_wondertrip/widgets/custom_crop_screen.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -24,43 +25,38 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
 
-  // ✅ UPDATED: Pick AND Crop Image
+  // ✅ UPDATED: Pick Image -> Custom Crop Screen
   Future<void> _pickImage() async {
-    // 1. Pick Image
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    
-    if (pickedFile != null) {
-      // 2. Crop Image immediately
-      await _cropImage(File(pickedFile.path));
-    }
-  }
+    try {
+      // 1. Pick Image
+      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) return;
 
-  // ✅ NEW: Crop Logic
-  Future<void> _cropImage(File imageFile) async {
-    CroppedFile? croppedFile = await ImageCropper().cropImage(
-      sourcePath: imageFile.path,
-      // Fixed Aspect Ratio to match your feed cards (e.g., 4:3 is standard for posts)
-      aspectRatio: const CropAspectRatio(ratioX: 4, ratioY: 3), 
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Edit Photo',
-          toolbarColor: const Color(0xFF0C7489), // Your App Color
-          toolbarWidgetColor: Colors.white,
-          initAspectRatio: CropAspectRatioPreset.ratio4x3,
-          lockAspectRatio: true, // Force the user to keep the rectangle shape
-          hideBottomControls: false,
-        ),
-        IOSUiSettings(
-          title: 'Edit Photo',
-          aspectRatioLockEnabled: true, // Force rectangle on iOS too
-        ),
-      ],
-    );
+      // 2. Read Bytes
+      final Uint8List imageBytes = await pickedFile.readAsBytes();
 
-    if (croppedFile != null) {
-      setState(() {
-        _imageFile = File(croppedFile.path);
-      });
+      if (!mounted) return;
+
+      // 3. Navigate to Custom Cropper (Buttons at Bottom)
+      final File? croppedFile = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CustomCropScreen(
+            imageBytes: imageBytes,
+            aspectRatio: 4 / 3, // ✅ Force 4:3 Ratio for Feed consistency
+            isCircle: false,    // ✅ Rectangle mode (No circle overlay)
+          ),
+        ),
+      );
+
+      // 4. Update State if user applied the crop
+      if (croppedFile != null) {
+        setState(() {
+          _imageFile = croppedFile;
+        });
+      }
+    } catch (e) {
+      debugPrint("Pick/Crop error: $e");
     }
   }
 

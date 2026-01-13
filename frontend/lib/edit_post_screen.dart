@@ -1,11 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data'; // ✅ Needed for reading bytes
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart'; // ✅ Import Cropper
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/location_picker_screen.dart';
 import 'package:flutter_application_wondertrip/widgets/secure_image.dart';
+// ✅ Import the Custom Cropper
+import 'package:flutter_application_wondertrip/widgets/custom_crop_screen.dart';
 
 class EditPostScreen extends StatefulWidget {
   final Post post;
@@ -54,40 +56,38 @@ class _EditPostScreenState extends State<EditPostScreen> {
     }
   }
 
-  // ✅ UPDATED: Pick AND Crop Image
+  // ✅ UPDATED: Pick Image -> Custom Crop Screen
   Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      // Immediately crop the new image
-      await _cropImage(File(pickedFile.path));
-    }
-  }
+    try {
+      // 1. Pick
+      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) return;
 
-  // ✅ NEW: Crop Logic (Same as Create Screen)
-  Future<void> _cropImage(File imageFile) async {
-    CroppedFile? croppedFile = await ImageCropper().cropImage(
-      sourcePath: imageFile.path,
-      aspectRatio: const CropAspectRatio(ratioX: 4, ratioY: 3), // Force 4:3
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Edit Photo',
-          toolbarColor: const Color(0xFF0C7489),
-          toolbarWidgetColor: Colors.white,
-          initAspectRatio: CropAspectRatioPreset.ratio4x3,
-          lockAspectRatio: true,
-          hideBottomControls: false,
-        ),
-        IOSUiSettings(
-          title: 'Edit Photo',
-          aspectRatioLockEnabled: true,
-        ),
-      ],
-    );
+      // 2. Read Bytes
+      final Uint8List imageBytes = await pickedFile.readAsBytes();
 
-    if (croppedFile != null) {
-      setState(() {
-        _newImageFile = File(croppedFile.path);
-      });
+      if (!mounted) return;
+
+      // 3. Navigate to Custom Cropper
+      final File? croppedFile = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CustomCropScreen(
+            imageBytes: imageBytes,
+            aspectRatio: 4 / 3, // ✅ Force 4:3 for Posts
+            isCircle: false,    // ✅ Rectangle mode
+          ),
+        ),
+      );
+
+      // 4. Update State
+      if (croppedFile != null) {
+        setState(() {
+          _newImageFile = croppedFile;
+        });
+      }
+    } catch (e) {
+      debugPrint("Pick/Crop error: $e");
     }
   }
 
@@ -176,7 +176,6 @@ class _EditPostScreenState extends State<EditPostScreen> {
             // 1. Image Picker (Shows OLD vs NEW)
             GestureDetector(
               onTap: _pickImage,
-              // ✅ WRAP in AspectRatio for preview consistency
               child: AspectRatio(
                 aspectRatio: 4 / 3,
                 child: Container(
@@ -189,10 +188,9 @@ class _EditPostScreenState extends State<EditPostScreen> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(15),
                     child: _newImageFile != null
-                        ? Image.file(_newImageFile!, fit: BoxFit.cover) // Show NEW cropped photo
+                        ? Image.file(_newImageFile!, fit: BoxFit.cover) 
                         : Stack(
                             children: [
-                              // Show OLD photo from server
                               Positioned.fill(child: SecurePostImage(photoPath: widget.post.photoPath, fit: BoxFit.cover)), 
                               Container(
                                   color: Colors.black26, 

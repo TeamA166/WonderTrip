@@ -4,7 +4,8 @@ import 'package:flutter_application_wondertrip/services/auth_service.dart';
 import 'package:flutter_application_wondertrip/login_screen.dart';
 import 'dart:io'; 
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart'; // ✅ Import Cropper
+// ✅ FIXED IMPORT (Removed old cropper, added custom screen)
+import 'package:flutter_application_wondertrip/widgets/custom_crop_screen.dart';
 import 'package:flutter_application_wondertrip/change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -89,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ✅ UPDATED: Image Picker with Circular/Square Crop
+  // ✅ NEW IMAGE PICKER LOGIC (Using CustomCropScreen)
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _pickAndUploadImage() async {
@@ -97,23 +98,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // 1. Pick Image from Gallery
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
-        // We let the cropper handle the resizing now
+        maxWidth: 1000, 
       );
 
       if (pickedFile == null) return;
 
-      // 2. Crop the Image (1:1 Ratio for Profile Pics)
-      File? croppedFile = await _cropImage(File(pickedFile.path));
+      // 2. Read bytes for our custom cropper
+      final Uint8List imageBytes = await pickedFile.readAsBytes();
 
-      if (croppedFile == null) return; // User cancelled cropping
+      if (!mounted) return;
+
+      // 3. Navigate to Custom Crop Screen (Buttons at bottom)
+      final File? croppedFile = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CustomCropScreen(imageBytes: imageBytes),
+        ),
+      );
+
+      if (croppedFile == null) return; // User cancelled
 
       setState(() => _isLoading = true);
 
-      // 3. Upload the CROPPED image
+      // 4. Upload the result
       bool success = await _authService.uploadProfilePhoto(croppedFile);
 
       if (success) {
-        // 4. Refresh Data to show new image
         await _loadProfileData(); 
         if (mounted) {
            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile photo updated!")));
@@ -129,35 +139,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  // ✅ Helper Function for Profile Cropping
-    Future<File?> _cropImage(File imageFile) async {
-        CroppedFile? cropped = await ImageCropper().cropImage(
-        sourcePath: imageFile.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1), 
-        uiSettings: [
-            AndroidUiSettings(
-            toolbarTitle: 'Move & Scale',
-            toolbarColor: const Color(0xFF0C7489),
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.square,
-            lockAspectRatio: true, 
-            hideBottomControls: true, 
-            ),
-            IOSUiSettings(
-            title: 'Move & Scale',
-            aspectRatioLockEnabled: true,
-            ),
-        ],
-        maxWidth: 500,
-        maxHeight: 500, 
-        );
-
-        if (cropped != null) {
-        return File(cropped.path);
-        }
-        return null;
-    }
 
   Future<void> _handleLogout() async {
     await _authService.logout();
