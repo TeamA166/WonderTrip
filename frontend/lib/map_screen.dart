@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart'; // OpenStreetMap package
 import 'package:latlong2/latlong.dart';      // Coordinates package
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_application_wondertrip/services/auth_service.dart'; // ✅ Import Auth Service
+import 'package:flutter_application_wondertrip/post_detail_screen.dart'; // ✅ To open details
+import 'package:flutter_application_wondertrip/widgets/secure_image.dart'; // ✅ For list thumbnails
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -11,95 +14,110 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  // Controller to move the map programmatically
+  final AuthService _authService = AuthService();
   final MapController _mapController = MapController();
   
-  // Your "Backend" Data Markers
   List<Marker> _markers = [];
-  
-  // User's current location (initially null)
+  List<Post> _verifiedPosts = []; // ✅ Store verified posts here
   LatLng? _userLocation;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _checkLocationPermission();
-    _fetchLocationsFromBackend();
+    _fetchVerifiedPosts();
   }
 
-  // 1. MOCK BACKEND DATA
-  void _fetchLocationsFromBackend() {
-    // Simulating data from your database
-    List<Map<String, dynamic>> backendData = [
-      {"lat": 51.7592, "lng": 19.4560, "name": "Manufaktura"},
-      {"lat": 51.7650, "lng": 19.4600, "name": "Old Town Park"},
-    ];
+  // 1. FETCH & FILTER VERIFIED POSTS
+  Future<void> _fetchVerifiedPosts() async {
+    // Fetch all posts (Assuming getPosts returns the feed)
+    // You might want a dedicated getVerifiedPosts() backend endpoint later for performance
+    final allPosts = await _authService.getPosts();
+    
+    // ✅ Filter: Only Verified posts that have coordinates
+    final verified = allPosts.where((p) => p.verified && p.coordinates.isNotEmpty).toList();
 
-    setState(() {
-      _markers = backendData.map((place) {
-        return Marker(
-          point: LatLng(place['lat'], place['lng']),
-          width: 50,
-          height: 50,
-          child: const Icon(
-            Icons.location_on, 
-            color: Colors.orange, 
-            size: 40
+    List<Marker> newMarkers = [];
+
+    for (var post in verified) {
+      LatLng? position = _parseCoordinates(post.coordinates);
+      if (position != null) {
+        newMarkers.add(
+          Marker(
+            point: position,
+            width: 60,
+            height: 60,
+            child: GestureDetector(
+              onTap: () => _navigateToPost(post), // Tap marker to open details
+              child: Column(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0C7489),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: const [BoxShadow(blurRadius: 5, color: Colors.black26)],
+                    ),
+                    padding: const EdgeInsets.all(6),
+                    child: const Icon(Icons.verified, color: Colors.white, size: 20),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: Color(0xFF0C7489), size: 20),
+                ],
+              ),
+            ),
           ),
         );
-      }).toList();
-    });
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _verifiedPosts = verified;
+        _markers = newMarkers;
+        _isLoading = false;
+      });
+    }
   }
 
-  // 2. GET USER LOCATION
-  Future<void> _checkLocationPermission() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+  // Helper: Parse "51.2, 19.3" string to LatLng
+  LatLng? _parseCoordinates(String coordString) {
+    try {
+      final parts = coordString.split(',');
+      if (parts.length == 2) {
+        return LatLng(double.parse(parts[0].trim()), double.parse(parts[1].trim()));
+      }
+    } catch (e) {
+      debugPrint("Error parsing coordinates for post: $e");
+    }
+    return null;
+  }
 
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  Future<void> _checkLocationPermission() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
 
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return;
     }
-
     if (permission == LocationPermission.deniedForever) return;
 
-    // Get the position
     Position position = await Geolocator.getCurrentPosition();
     
-    setState(() {
-      _userLocation = LatLng(position.latitude, position.longitude);
-      
-      // Optional: Add a blue marker for the user
-      _markers.add(
-        Marker(
-          point: _userLocation!,
-          width: 50,
-          height: 50,
-          child: const Icon(
-            Icons.my_location, 
-            color: Colors.blue, // Blue dot for user
-            size: 30
-          ),
-        )
-      );
-      
-      // Move map to user
-      _mapController.move(_userLocation!, 14.0);
-    });
+    if (mounted) {
+      setState(() {
+        _userLocation = LatLng(position.latitude, position.longitude);
+        _mapController.move(_userLocation!, 13.0);
+      });
+    }
   }
 
-  void _showFavoritesPopup() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Favorites"),
-        content: const Text("List is empty!"),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
-      ),
+  void _navigateToPost(Post post) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => PostDetailScreen(post: post)),
     );
   }
 
@@ -108,89 +126,157 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 🗺️ OPEN STREET MAP WIDGET
+          // 🗺️ LAYER 1: THE MAP
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: const LatLng(51.7592, 19.4560), // Lodz Default
+              initialCenter: const LatLng(51.7592, 19.4560), // Default fallback
               initialZoom: 13.0,
             ),
             children: [
-              // 1. The Map Tiles (The actual visual map)
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.flutter_application_wondertrip', // Required by OSM policy
+                userAgentPackageName: 'com.example.wondertrip',
               ),
-              
-              // 2. The Pins (Markers)
-              MarkerLayer(markers: _markers),
+              MarkerLayer(markers: [
+                ..._markers,
+                if (_userLocation != null)
+                  Marker(
+                    point: _userLocation!,
+                    width: 50,
+                    height: 50,
+                    child: const Icon(Icons.my_location, color: Colors.blue, size: 30),
+                  ),
+              ]),
             ],
           ),
 
-          // Back Button
-          Positioned(
+          // 🔙 LAYER 2: BACK BUTTON
+            Positioned(
             top: 50,
             left: 20,
-            child: CircleAvatar(
-              backgroundColor: Colors.white,
+            child: Material(
+              elevation: 4, // ✅ Elevation goes here in Material
+              shape: const CircleBorder(), // Keeps it round
+              color: Colors.white, // Color goes here now
               child: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.black), 
-                onPressed: () => Navigator.pop(context)
+                onPressed: () => Navigator.pop(context),
               ),
             ),
           ),
 
-          // Bottom Navigation (Your existing UI)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: 120,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE0E0E0),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 50, height: 5, 
-                    decoration: BoxDecoration(color: Colors.grey, borderRadius: BorderRadius.circular(10))
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildNavButton(Icons.explore, "Discover", true, null),
-                      _buildNavButton(Icons.favorite, "Favorites", false, _showFavoritesPopup),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          // 📄 LAYER 3: DRAGGABLE SHEET (Pullable List)
+          DraggableScrollableSheet(
+            initialChildSize: 0.15, // Height when collapsed (just the handle/buttons)
+            minChildSize: 0.15,     // Minimum height
+            maxChildSize: 0.85,     // Maximum height (almost full screen)
+            builder: (context, scrollController) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, spreadRadius: 2)],
+                ),
+                child: ListView(
+                  controller: scrollController, // ✅ Attach controller here for drag physics
+                  padding: EdgeInsets.zero,
+                  children: [
+                    // 1. Drag Handle
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 12, bottom: 8),
+                        width: 40, height: 5,
+                        decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+
+                    // 2. Navigation Buttons (Discover / Favorites)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildNavButton(Icons.explore, "Discover", true),
+                          _buildNavButton(Icons.favorite, "Favorites", false),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // 3. List of Verified Posts
+                    if (_isLoading)
+                      const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()))
+                    else if (_verifiedPosts.isEmpty)
+                      const Padding(padding: EdgeInsets.all(20), child: Center(child: Text("No verified spots found yet.")))
+                    else
+                      ..._verifiedPosts.map((post) => _buildPostListItem(post)),
+                    
+                    const SizedBox(height: 20), // Bottom padding
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNavButton(IconData icon, String label, bool isActive, VoidCallback? onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
-        decoration: BoxDecoration(
-          color: isActive ? Colors.white.withValues(alpha: 0.8) : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
+  Widget _buildNavButton(IconData icon, String label, bool isActive) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFFE3F2FD) : Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: isActive ? const Color(0xFF0C7489) : Colors.grey, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            label, 
+            style: TextStyle(
+              color: isActive ? const Color(0xFF0C7489) : Colors.grey, 
+              fontWeight: FontWeight.bold
+            )
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostListItem(Post post) {
+    return ListTile(
+      onTap: () => _navigateToPost(post),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: 60, height: 60,
+          child: SecurePostImage(photoPath: post.photoPath, fit: BoxFit.cover),
         ),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(0xFF616161)),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(color: Color(0xFF616161), fontWeight: FontWeight.w600)),
-          ],
-        ),
+      ),
+      title: Text(post.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Row(
+        children: [
+          const Icon(Icons.star, color: Colors.amber, size: 16),
+          const SizedBox(width: 4),
+          Text(post.rating.toString()),
+          const SizedBox(width: 10),
+          const Icon(Icons.verified, color: Color(0xFF0C7489), size: 16),
+          const Text(" Verified", style: TextStyle(color: Color(0xFF0C7489), fontSize: 12)),
+        ],
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.location_searching, color: Colors.grey),
+        onPressed: () {
+          // Move map to this location
+          LatLng? loc = _parseCoordinates(post.coordinates);
+          if (loc != null) {
+            _mapController.move(loc, 15.0);
+          }
+        },
       ),
     );
   }

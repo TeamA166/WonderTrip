@@ -481,6 +481,26 @@ class AuthService {
       return null; // Return null on error so we show a default icon
     }
   }
+  // ✅ NEW: Fetch all public posts (for the Map)
+  Future<List<Post>> getPosts() async {
+    try {
+      // Assuming public posts are at /public/posts or similar.
+      // If your backend protects feed, verify the endpoint.
+      // Here we assume it uses the same structure as "My Posts" but fetches the feed.
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      
+      final response = await _dio.get('$protectedUrl/posts'); // Or '/public/posts' depending on your backend
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = response.data;
+        return data.map((json) => Post.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Get All Posts Error: $e");
+      return [];
+    }
+  }
 }
 
 // --- DATA MODEL ---
