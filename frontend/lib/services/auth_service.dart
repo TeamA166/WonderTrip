@@ -13,15 +13,15 @@ class AuthService {
   String get baseUrl {
       // 1. Web: localhost works fine
       if (kIsWeb) {
-        return "https://api.batuanalun.com/api/v1/auth"; 
+        return "https://api.batuhanalun.com/api/v1/auth"; 
       } 
       // 2. Android Emulator: Must use special IP 10.0.2.2 to reach host machine
       else if (defaultTargetPlatform == TargetPlatform.android) {
-        return "https://api.batuanalun.com/api/v1/auth"; 
+        return "https://api.batuhanalun.com/api/v1/auth"; 
       } 
       // 3. iOS Simulator: Uses localhost (127.0.0.1)
       else {
-        return "https://api.batuanalun.com/api/v1/auth";
+        return "https://api.batuhanalun.com/api/v1/auth";
       }
     }
 
