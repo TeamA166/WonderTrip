@@ -566,3 +566,23 @@ func (h *PostHandler) CheckLikeStatus(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"is_liked": isLiked})
 }
+func (h *PostHandler) GetPostLikeCount(c *fiber.Ctx) error {
+	// 1. Get string from URL
+	idStr := c.Params("id")
+
+	// 2. Parse into UUID (This validates the format too)
+	postID, err := uuid.Parse(idStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid Post UUID"})
+	}
+
+	// 3. Pass UUID to Repo
+	count, err := h.repo.GetLikeCount(postID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch like count"})
+	}
+
+	return c.JSON(fiber.Map{
+		"count": count,
+	})
+}

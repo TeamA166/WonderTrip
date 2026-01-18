@@ -5,21 +5,23 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class AuthService {
   // 1. Define Base URL (Points to /auth group)
   String get baseUrl {
       // 1. Web: localhost works fine
       if (kIsWeb) {
-        return "https://api.batuhanalun.com/api/v1/auth"; 
+        return "http://localhost:8080/api/v1/auth"; 
       } 
       // 2. Android Emulator: Must use special IP 10.0.2.2 to reach host machine
       else if (defaultTargetPlatform == TargetPlatform.android) {
-        return "https://api.batuhanalun.com/api/v1/auth"; 
+        return "http://10.0.2.2:8080/api/v1/auth"; 
       } 
       // 3. iOS Simulator: Uses localhost (127.0.0.1)
       else {
-        return "https://api.batuhanalun.com/api/v1/auth"; 
+        return "http://127.0.0.1:8080/api/v1/auth"; 
       }
     }
 
@@ -591,6 +593,25 @@ class AuthService {
       return response.data['is_liked'] == true;
     } catch (e) {
       return false;
+    }
+  }
+  Future<int> getLikeCount(String postId) async {
+    try {
+      final protectedUrl = baseUrl.replaceAll("/auth", "/protected");
+      
+      // Dio sends cookies automatically, no need for headers
+      final response = await _dio.get('$protectedUrl/posts/$postId/like-count');
+
+      if (response.statusCode == 200) {
+        // Ensure we parse to int safely
+        return response.data['count'] is int 
+            ? response.data['count'] 
+            : int.tryParse(response.data['count'].toString()) ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      debugPrint("Get Like Count Error: $e");
+      return 0;
     }
   }
 }

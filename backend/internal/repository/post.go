@@ -27,6 +27,7 @@ type PostRepository interface {
 	GetFeedPosts(ctx context.Context, limit int, offset int, excludeUserID uuid.UUID) ([]core.Post, error)
 	ToggleLike(ctx context.Context, userID, postID uuid.UUID) error
 	IsLiked(ctx context.Context, userID, postID uuid.UUID) (bool, error)
+	GetLikeCount(postID uuid.UUID) (int64, error)
 }
 
 type postRepository struct {
@@ -320,4 +321,17 @@ func (r *postRepository) IsLiked(ctx context.Context, userID, postID uuid.UUID) 
 	query := "SELECT EXISTS(SELECT 1 FROM post_likes WHERE user_id = $1 AND post_id = $2)"
 	err := r.db.QueryRowContext(ctx, query, userID, postID).Scan(&exists)
 	return exists, err
+}
+
+// ✅ FIX: Accept string instead of uint
+func (r *postRepository) GetLikeCount(postID uuid.UUID) (int64, error) {
+	var count int64
+
+	// Use $1 for PostgreSQL placeholders
+	query := "SELECT COUNT(*) FROM post_likes WHERE post_id = $1"
+
+	// Pass the uuid struct directly; the driver handles the string serialization
+	err := r.db.QueryRow(query, postID).Scan(&count)
+
+	return count, err
 }

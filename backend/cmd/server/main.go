@@ -110,6 +110,8 @@ func main() {
 		protected.Post("/posts/:id/like", postHandler.ToggleLike)
 		protected.Get("/posts/:id/like", postHandler.CheckLikeStatus)
 
+		protected.Get("/posts/:id/like-count", postHandler.GetPostLikeCount)
+
 	}
 
 	serverErr := make(chan error, 1)

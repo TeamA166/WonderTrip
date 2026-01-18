@@ -28,28 +28,34 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize with local data first for speed
     _isLiked = widget.post.isLiked;
     _likeCount = widget.post.likeCount;
     _isBookmarked = widget.post.isFavorited;
+    
+    // Then fetch fresh data from server
     _loadComments();
     _syncRealStatus();
   }
 
-    Future<void> _syncRealStatus() async {
-    // Check Like Status
-    bool realLikeStatus = await _authService.isPostLiked(widget.post.id);
-    // Check Bookmark Status
-    bool realFavStatus = await _authService.isPostFavorited(widget.post.id);
+Future<void> _syncRealStatus() async {
+    final results = await Future.wait([
+      _authService.isPostLiked(widget.post.id),
+      _authService.isPostFavorited(widget.post.id),
+      _authService.getLikeCount(widget.post.id), // ✅ No more type error
+    ]);
 
     if (mounted) {
       setState(() {
-        _isLiked = realLikeStatus;
-        _isBookmarked = realFavStatus;
- 
+        _isLiked = results[0] as bool;
+        _isBookmarked = results[1] as bool;
+        _likeCount = results[2] as int;
       });
     }
   }
+
   Future<void> _handleLike() async {
+    // 1. Optimistic Update (Instant feedback for user)
     setState(() {
       _isLiked = !_isLiked;
       if (_isLiked) {
@@ -58,7 +64,31 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         _likeCount--;
       }
     });
-    await _authService.toggleLike(widget.post.id);
+
+    // 2. Send Request
+    bool success = await _authService.toggleLike(widget.post.id);
+
+    // 3. Re-sync with server to ensure accuracy
+    if (success) {
+      int realCount = await _authService.getLikeCount(widget.post.id);
+      if (mounted) {
+        setState(() {
+          _likeCount = realCount;
+        });
+      }
+    } else {
+      // Revert if failed
+      if (mounted) {
+        setState(() {
+          _isLiked = !_isLiked;
+           if (_isLiked) {
+            _likeCount++;
+          } else {
+            _likeCount--;
+          }
+        });
+      }
+    }
   }
 
   Future<void> _handleBookmark() async {
@@ -104,13 +134,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       return;
     }
     final cleanCoords = coords.replaceAll(" ", "");
-    final Uri googleMapsUrl = Uri.parse("http://maps.google.com/maps?q=$cleanCoords");
+    final Uri googleMapsUrl = Uri.parse("http://maps.google.com/maps?q=$cleanCoords?q=$cleanCoords");
     try {
       if (!await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication)) {
         throw 'Could not launch maps';
       }
     } catch (e) {
       debugPrint("Maps Error: $e");
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not open maps application.")));
+      }
     }
   }
 
@@ -284,7 +317,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Rating removed from here (moved to image)
                         
                         // Verification Badge (If applicable)
                         if (widget.post.verified)
